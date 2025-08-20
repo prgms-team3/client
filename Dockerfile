@@ -1,20 +1,24 @@
 FROM node:20-alpine AS builder
 WORKDIR /usr/src/app
 
-COPY package*.json ./
+# placeit-frontend 폴더의 package.json 복사
+COPY placeit-frontend/package*.json ./
 RUN npm ci
-COPY . .
+# placeit-frontend 폴더의 모든 파일 복사
+COPY placeit-frontend/ .
 RUN npm run build
 
 #===================#
 
 FROM node:20-alpine
 WORKDIR /usr/src/app
-COPY package*.json ./
+# placeit-frontend 폴더의 package.json 복사
+COPY placeit-frontend/package*.json ./
 RUN npm ci --only=production
 
-# 빌더 스테이지에서 빌드된 결과물을 복사합니다.
-COPY --from=builder /usr/src/app/dist ./dist
+# Next.js 빌드 결과물 복사
+COPY --from=builder /usr/src/app/.next ./.next
+COPY --from=builder /usr/src/app/public ./public
 
 # (보안 강화) 애플리케이션을 실행할 non-root 사용자 및 그룹 생성
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
@@ -24,7 +28,7 @@ RUN chown -R appuser:appgroup /usr/src/app
 USER appuser
 
 ENV NODE_ENV=production
-ENV PORT=8080
-EXPOSE 8080
+ENV PORT=3000
+EXPOSE 3000
 
-CMD ["node", "dist/main"]
+CMD ["npm", "start"]

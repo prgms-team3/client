@@ -8,7 +8,7 @@ steps:
         'build',
         '-t',
         '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}:${SHORT_SHA}',
-        '.',
+        './placeit-frontend',
       ]
 
   # 2. 빌드된 이미지를 Artifact Registry에 푸시
