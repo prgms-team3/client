@@ -75,19 +75,48 @@ npm install
 npm run dev
 ```
 
-### 4. 브랜치 생성 및 작업
+### 4. Git Flow 워크플로우
+
+#### 1. 기능 개발
 
 ```bash
 # develop에서 새 기능 브랜치 생성
 git checkout develop
 git pull origin develop
-git checkout -b feature/새기능명
+git checkout -b feature/기능명
 
-# 개발 완료 후 develop에 머지
-git checkout develop
-git merge feature/새기능명
-git push origin develop
+# 개발 작업 후 커밋 및 푸시
+git add .
+git commit -m "feat: 기능 설명"
+git push origin feature/기능명
 ```
+
+#### 2. PR 생성 (GitHub 웹)
+
+- `feature/기능명` → `develop` PR 생성
+- 리뷰어 지정 및 리뷰 요청
+- PR 설명에 기능 상세 내용 작성
+
+#### 3. 코드 리뷰 & 머지 (GitHub 웹)
+
+- 팀원 코드 리뷰 진행
+- 리뷰 의견 반영 및 수정
+- 승인 후 `develop`에 머지
+
+#### 4. 정리
+
+```bash
+# develop 브랜치 최신화 및 로컬 브랜치 정리
+git checkout develop
+git pull origin develop
+git branch -d feature/기능명
+```
+
+#### 5. 배포 (GitHub 웹)
+
+- `develop` → `main` PR 생성
+- 최종 승인 및 머지
+- 자동 배포 또는 수동 배포 진행
 
 ## 📁 프로젝트 구조
 
