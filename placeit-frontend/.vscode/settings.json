@@ -1,0 +1,68 @@
+{
+  "tailwindCSS.experimental.configFile": "./tailwind.config.ts",
+  "tailwindCSS.validate": true,
+  "tailwindCSS.lint.cssConflict": "warning",
+  "tailwindCSS.lint.invalidApply": "error",
+  "tailwindCSS.lint.invalidConfigPath": "error",
+  "tailwindCSS.lint.invalidScreen": "error",
+  "tailwindCSS.lint.invalidTailwindDirective": "error",
+  "tailwindCSS.lint.invalidVariant": "error",
+  "tailwindCSS.lint.recommendedVariantOrder": "warning",
+  "tailwindCSS.emmetCompletions": true,
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript",
+    "css": "css"
+  },
+  "tailwindCSS.classAttributes": ["class", "className", "ngClass"],
+
+  "css.validate": false,
+  "scss.validate": false,
+  "less.validate": false,
+
+  "css.lint.duplicateProperties": "ignore",
+  "css.lint.emptyRules": "ignore",
+  "css.lint.importStatement": "ignore",
+  "css.lint.unknownAtRules": "ignore",
+  "css.lint.unknownProperties": "ignore",
+  "css.lint.unknownVendorSpecificProperties": "ignore",
+  "css.lint.vendorPrefix": "ignore",
+  "css.lint.zeroUnits": "ignore",
+  "css.lint.hexColorLength": "ignore",
+  "css.lint.hexColors": "ignore",
+  "css.lint.colorFunctionCase": "ignore",
+  "css.lint.fontFamilyNoDuplicateNames": "ignore",
+  "css.lint.fontFamilyNoMissingGenericFamilyKeyword": "ignore",
+  "css.lint.keyframeDeclarationNoImportant": "ignore",
+  "css.lint.noDuplicateSelectors": "ignore",
+  "css.lint.noEmptySource": "ignore",
+  "css.lint.noInvalidDoubleHyphensInSelectorName": "ignore",
+  "css.lint.noUnknownVendorSpecificProperties": "ignore",
+  "css.lint.noVendorPrefix": "ignore",
+  "css.lint.propertyNoUnknown": "ignore",
+  "css.lint.selectorNoQualifyingType": "ignore",
+  "css.lint.selectorNoType": "ignore",
+  "css.lint.selectorNoUniversal": "ignore",
+  "css.lint.selectorPseudoClassNoUnknown": "ignore",
+  "css.lint.selectorPseudoElementNoUnknown": "ignore",
+  "css.lint.selectorTypeNoUnknown": "ignore",
+  "css.lint.shorthandProperties": "ignore",
+  "css.lint.stringQuotes": "ignore",
+  "css.lint.unitNoUnknown": "ignore",
+  "css.lint.valueNoUnknown": "ignore",
+
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "css.customData": [".vscode/css_custom_data.json"],
+
+  "emmet.includeLanguages": {
+    "typescript": "html",
+    "typescriptreact": "html"
+  },
+
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "editor.inlineSuggest.enabled": true
+}
