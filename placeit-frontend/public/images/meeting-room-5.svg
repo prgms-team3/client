@@ -1,0 +1,7 @@
+<svg width="320" height="192" viewBox="0 0 320 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="320" height="192" fill="#FDF4FF"/>
+  <rect x="120" y="40" width="80" height="40" rx="8" fill="#E9D5FF"/>
+  <rect x="140" y="60" width="40" height="20" rx="4" fill="#D8B4FE"/>
+  <circle cx="160" cy="70" r="4" fill="#A855F7"/>
+  <text x="160" y="140" text-anchor="middle" fill="#7C3AED" font-family="Arial" font-size="16" font-weight="bold">미니룸</text>
+</svg>

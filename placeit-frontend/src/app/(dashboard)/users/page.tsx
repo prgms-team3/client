@@ -3,21 +3,25 @@
 import React from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 
-export default function ReservationsPage() {
+export default function UsersPage() {
   return (
-    <MainLayout activePage="reservations">
+    <MainLayout activePage="users">
       <div className="p-6">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">예약 관리</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">사용자 관리</h1>
           <p className="text-gray-600">
-            회의실 예약을 관리하고 일정을 확인하세요
+            시스템 사용자 정보를 관리하고 권한을 설정하세요
           </p>
         </div>
 
         <div className="bg-white rounded-lg border p-6">
-          <p className="text-gray-600">예약 관리 기능이 준비 중입니다.</p>
+          <p className="text-gray-600">사용자 관리 기능이 준비 중입니다.</p>
         </div>
       </div>
     </MainLayout>
   );
 }
+
+
+
+
