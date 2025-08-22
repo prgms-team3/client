@@ -55,7 +55,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen">
-      {/* 헤더 - 간단하게 */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="container">
           <div className="flex items-center justify-between h-16">
@@ -65,7 +64,6 @@ export default function HomePage() {
               <img src="/logo.svg" alt="PlaceIt" className="h-6" />
             </div>
 
-            {/* 서비스 시작하기 버튼만 */}
             <Link href="/dashboard">
               <Button>서비스 시작하기</Button>
             </Link>
@@ -73,14 +71,12 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* 히어로 섹션 */}
       <section className="py-20 lg:py-32 bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="container">
           <div className="text-center max-w-4xl mx-auto">
             <h1 className="text-4xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
               공간 예약의
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                {' '}
                 새로운 기준
               </span>
             </h1>
@@ -149,7 +145,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA 섹션 */}
       <section className="py-20 gradient-primary">
         <div className="container">
           <div className="text-center text-white">
@@ -168,7 +163,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 푸터 */}
       <footer className="py-12 bg-gray-900 text-white">
         <div className="container">
           <div className="text-center">
