@@ -103,4 +103,19 @@
       transform: translateY(0);
     }
   }
+
+  /* 스크롤바 숨기기 */
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+
+  /* 부드러운 스크롤 */
+  .scroll-smooth {
+    scroll-behavior: smooth;
+  }
 }
