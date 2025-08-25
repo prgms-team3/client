@@ -7,15 +7,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  X,
-  Calendar,
-  Building,
-  Users,
-  BarChart3,
-  Settings,
-  Plus,
-} from 'lucide-react';
+import { X, Calendar, Building, Users, BarChart3, Plus } from 'lucide-react';
 
 interface ReservationPanelProps {
   isOpen: boolean;

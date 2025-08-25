@@ -1,12 +1,9 @@
 import React from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Calendar, Copy, LogOut } from 'lucide-react';
+import { Copy, LogOut } from 'lucide-react';
 
-interface HeaderProps {
-  // 날짜와 시스템 상태는 제거
-}
-
-export function Header({}: HeaderProps) {
+export function Header() {
   const handleCopy = () => {
     navigator.clipboard.writeText('STARTUP2024');
   };
@@ -19,8 +16,20 @@ export function Header({}: HeaderProps) {
     <header className="bg-white border-b border-gray-200">
       <div className="flex items-center justify-between px-6 py-4">
         <div className="brand-logo">
-          <img src="/icon.svg" alt="PlaceIt Icon" className="w-8 h-8" />
-          <img src="/logo.svg" alt="PlaceIt" className="h-6" />
+          <Image
+            src="/icon.svg"
+            alt="PlaceIt Icon"
+            width={32}
+            height={32}
+            className="w-8 h-8"
+          />
+          <Image
+            src="/logo.svg"
+            alt="PlaceIt"
+            width={120}
+            height={24}
+            className="h-6"
+          />
         </div>
 
         <div className="flex items-center gap-4 text-sm">
