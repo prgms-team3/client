@@ -1,5 +1,8 @@
 'use client';
 
+import React from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -9,7 +12,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Calendar, Clock, Users, Shield, Zap, Smartphone } from 'lucide-react';
-import Link from 'next/link';
 
 export default function HomePage() {
   const features = [
@@ -60,8 +62,20 @@ export default function HomePage() {
           <div className="flex items-center justify-between h-16">
             {/* 로고 */}
             <div className="brand-logo">
-              <img src="/icon.svg" alt="PlaceIt Icon" className="w-8 h-8" />
-              <img src="/logo.svg" alt="PlaceIt" className="h-6" />
+              <Image
+                src="/icon.svg"
+                alt="PlaceIt Icon"
+                width={32}
+                height={32}
+                className="w-8 h-8"
+              />
+              <Image
+                src="/logo.svg"
+                alt="PlaceIt"
+                width={120}
+                height={24}
+                className="h-6"
+              />
             </div>
 
             <Link href="/dashboard">
@@ -167,8 +181,20 @@ export default function HomePage() {
         <div className="container">
           <div className="text-center">
             <div className="brand-logo mb-6 flex justify-center">
-              <img src="/icon.svg" alt="PlaceIt Icon" className="w-10 h-10" />
-              <img src="/logo.svg" alt="PlaceIt" className="h-8 ml-3" />
+              <Image
+                src="/icon.svg"
+                alt="PlaceIt Icon"
+                width={40}
+                height={40}
+                className="w-10 h-10"
+              />
+              <Image
+                src="/logo.svg"
+                alt="PlaceIt"
+                width={160}
+                height={32}
+                className="h-8 ml-3"
+              />
             </div>
             <p className="text-gray-400 mb-4 text-lg">
               스마트한 공간 예약 관리 시스템

@@ -7,7 +7,6 @@ import {
   Building,
   Users,
   Tablet,
-  BarChart3,
   Settings,
   User,
   FileText,

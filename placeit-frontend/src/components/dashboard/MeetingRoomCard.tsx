@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import {
   Card,
   CardHeader,
@@ -73,9 +74,11 @@ export function MeetingRoomCard({
     >
       <CardHeader className="relative pb-3">
         <div className="h-48 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg overflow-hidden mb-4 relative">
-          <img
+          <Image
             src={imageUrl}
             alt={name}
+            width={400}
+            height={192}
             className="w-full h-full object-cover"
             onError={e => {
               const target = e.target as HTMLImageElement;
