@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import {
   Edit2,
   Trash2,
@@ -16,12 +17,11 @@ import {
   Tv,
   Video,
 } from 'lucide-react';
-import { Button } from '../ui/button';
-import React from 'react';
+import { Button } from '@/components/ui/button';
 
-type Status = 'available' | 'unavailable' | 'maintenance';
+export type Status = 'available' | 'unavailable' | 'maintenance';
 
-type FacilityKey =
+export type FacilityKey =
   | 'whiteboard'
   | 'wifi'
   | 'monitor'
@@ -35,7 +35,7 @@ type FacilityKey =
   | 'smart_tv'
   | 'video_conf';
 
-interface MeetingRoomCardProps {
+export interface MeetingRoomCardProps {
   name: string;
   description: string;
   location: string;
@@ -46,6 +46,8 @@ interface MeetingRoomCardProps {
   facilities: FacilityKey[];
   imageUrl: string;
   onStatusChange?: (next: Status) => void;
+  /** 승인 정책 (항상 칩 노출) */
+  approvalPolicy?: 'auto' | 'approval_required';
 }
 
 const facilityMap: Record<
@@ -66,19 +68,27 @@ const facilityMap: Record<
   video_conf: { label: '화상회의', Icon: Video },
 };
 
-const badgeClass = (status: Status) =>
+const statusBadgeClass = (status: Status) =>
   status === 'available'
     ? 'bg-green-100 text-green-700'
     : status === 'maintenance'
     ? 'bg-orange-100 text-orange-800'
     : 'bg-red-100 text-red-700';
 
-const badgeText = (status: Status) =>
+const statusBadgeText = (status: Status) =>
   status === 'available'
     ? '사용가능'
     : status === 'maintenance'
     ? '점검중'
     : '사용불가';
+
+const approvalBadgeClass = (p: 'auto' | 'approval_required') =>
+  p === 'approval_required'
+    ? 'bg-amber-100 text-amber-800'
+    : 'bg-blue-100 text-blue-700';
+
+const approvalBadgeText = (p: 'auto' | 'approval_required') =>
+  p === 'approval_required' ? '예약 시 승인 필요' : '누구나 예약 가능';
 
 export default function MeetingRoomCard({
   name,
@@ -91,8 +101,8 @@ export default function MeetingRoomCard({
   facilities,
   imageUrl,
   onStatusChange,
+  approvalPolicy = 'auto',
 }: MeetingRoomCardProps) {
-  // 현재 상태에 따른 버튼 구성
   const actions = React.useMemo(() => {
     if (status === 'available') {
       return [
@@ -137,27 +147,36 @@ export default function MeetingRoomCard({
   }, [status]);
 
   return (
-    <div className="bg-white rounded-lg shadow border p-4 w-full">
-      {/* 이미지 영역 */}
-      <div className="relative rounded-lg overflow-hidden">
+    <div className="w-full rounded-lg border bg-white p-4 shadow">
+      {/* 이미지 */}
+      <div className="relative overflow-hidden rounded-lg">
         <img
           src={imageUrl}
           alt={name}
-          className="w-full aspect-[16/9] object-cover"
+          className="aspect-[16/9] w-full object-cover"
           loading="lazy"
         />
         <span
-          className={`absolute top-2 right-2 z-10 ${badgeClass(
+          className={`absolute right-2 top-2 z-10 rounded-full px-2 py-1 text-xs font-semibold ${statusBadgeClass(
             status
-          )} text-xs font-semibold px-2 py-1 rounded-full`}
+          )}`}
         >
-          {badgeText(status)}
+          {statusBadgeText(status)}
         </span>
       </div>
 
-      {/* 회의실 정보 */}
+      {/* 본문 */}
       <div className="mt-4">
-        <div className="mb-1 flex items-center justify-between">
+        {/* 승인 여부 */}
+        <span
+          className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${approvalBadgeClass(
+            approvalPolicy
+          )}`}
+        >
+          {approvalBadgeText(approvalPolicy)}
+        </span>
+        {/* 회의실 이름 및 설명 */}
+        <div className="mt-1 mb-1 flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">{name}</h2>
           <div className="flex gap-2">
             <button
@@ -174,8 +193,10 @@ export default function MeetingRoomCard({
             </button>
           </div>
         </div>
+
         <p className="text-sm text-gray-500">{description}</p>
 
+        {/* 회의실 상세정보 */}
         <div className="mt-3 grid grid-cols-2 gap-y-1 text-sm text-gray-700">
           <span>
             위치: <b>{location}</b>
@@ -209,7 +230,7 @@ export default function MeetingRoomCard({
           })}
         </div>
 
-        {/* 하단 버튼 (상태별 토글) */}
+        {/* 하단 버튼 */}
         <div className="mt-4 flex gap-2">
           {actions.map(a => (
             <Button

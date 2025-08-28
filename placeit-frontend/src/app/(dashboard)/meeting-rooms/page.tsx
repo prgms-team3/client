@@ -3,15 +3,20 @@
 import React from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { StatCard } from '@/components/management/StatCard';
-import { Building2, Cog, Plus, Users } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Building2, Cog, Users } from 'lucide-react';
 import SearchFilterBar, {
   type FilterItem,
 } from '@/components/management/SearchFilterBar';
-import MeetingRoomCard from '@/components/management/MeetingRoomCard';
+import MeetingRoomCard, {
+  type MeetingRoomCardProps,
+} from '@/components/management/MeetingRoomCard';
+import AddMeetingRoomDialog, {
+  type NewRoom,
+} from '@/components/management/AddMeetingRoomDialog';
 
 type Status = 'available' | 'unavailable' | 'maintenance';
 type RoomFilter = 'all' | Status;
+type ApprovalPolicy = 'auto' | 'approval_required';
 
 const FILTERS: FilterItem<RoomFilter>[] = [
   { key: 'all', label: '전체' },
@@ -20,24 +25,16 @@ const FILTERS: FilterItem<RoomFilter>[] = [
   { key: 'maintenance', label: '점검중' },
 ];
 
-type Room = {
+// MeetingRoomCard props + id + 승인정책
+type Room = MeetingRoomCardProps & {
   id: string;
-  name: string;
-  description: string;
-  location: string;
-  capacity: number;
-  monthlyReservations: number;
-  utilizationRate: number;
-  status: Status;
-  facilities: React.ComponentProps<typeof MeetingRoomCard>['facilities'];
-  imageUrl: string;
+  approvalPolicy: ApprovalPolicy;
 };
 
 export default function MeetingRoomsPage() {
   const [q, setQ] = React.useState('');
   const [k, setK] = React.useState<RoomFilter>('all');
 
-  // 예시 데이터
   const [rooms, setRooms] = React.useState<Room[]>([
     {
       id: 'r1',
@@ -45,11 +42,12 @@ export default function MeetingRoomsPage() {
       description: '소규모 팀 회의에 적합',
       location: '1층 동쪽',
       capacity: 8,
-      monthlyReservations: 24,
-      utilizationRate: 65,
+      monthlyReservations: 0,
+      utilizationRate: 0,
       status: 'maintenance',
       facilities: ['whiteboard', 'wifi', 'mic', 'video_conf', 'smart_tv'],
       imageUrl: 'https://images.unsplash.com/photo-1497366216548-37526070297c',
+      approvalPolicy: 'approval_required',
     },
     {
       id: 'r2',
@@ -57,23 +55,12 @@ export default function MeetingRoomsPage() {
       description: '중규모 팀 브리핑용',
       location: '2층 서쪽',
       capacity: 12,
-      monthlyReservations: 30,
-      utilizationRate: 72,
+      monthlyReservations: 0,
+      utilizationRate: 0,
       status: 'available',
       facilities: ['monitor', 'wifi', 'speaker', 'whiteboard'],
       imageUrl: 'https://images.unsplash.com/photo-1557804506-669a67965ba0',
-    },
-    {
-      id: 'r3',
-      name: '회의실 C',
-      description: '영상 회의 전용',
-      location: '3층 남쪽',
-      capacity: 10,
-      monthlyReservations: 18,
-      utilizationRate: 58,
-      status: 'unavailable',
-      facilities: ['camera', 'video_conf', 'mic', 'light'],
-      imageUrl: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36',
+      approvalPolicy: 'auto',
     },
   ]);
 
@@ -102,14 +89,34 @@ export default function MeetingRoomsPage() {
     });
   }, [rooms, q, k]);
 
-  // 카드에서 올라오는 상태 변경 콜백
   const handleStatusChange = (id: string, next: Status) => {
     setRooms(prev => prev.map(r => (r.id === id ? { ...r, status: next } : r)));
   };
 
-  // 회의실 추가 모달
-  const handleAddRoom = () => {
-    alert('회의실 추가 모달');
+  // 새 회의실 추가
+  const handleAddRoom = (room: NewRoom) => {
+    const id =
+      (typeof crypto !== 'undefined' &&
+        'randomUUID' in crypto &&
+        crypto.randomUUID()) ||
+      `r-${Date.now()}`;
+
+    setRooms(prev => [
+      {
+        id,
+        name: room.name,
+        description: room.description,
+        location: room.location,
+        capacity: room.capacity,
+        monthlyReservations: 0,
+        utilizationRate: 0,
+        status: room.status,
+        facilities: room.facilities,
+        imageUrl: room.imageUrl,
+        approvalPolicy: room.approvalPolicy,
+      },
+      ...prev,
+    ]);
   };
 
   return (
@@ -125,10 +132,7 @@ export default function MeetingRoomsPage() {
               회의실 현황을 관리하고 설정을 변경하세요
             </p>
           </div>
-          <Button onClick={handleAddRoom} aria-label="회의실 추가">
-            <Plus className="mr-2 h-4 w-4" />
-            회의실 추가
-          </Button>
+          <AddMeetingRoomDialog onAdd={handleAddRoom} />
         </div>
 
         {/* 통계 */}
@@ -169,13 +173,8 @@ export default function MeetingRoomsPage() {
           onChange={setK}
         />
 
-        {/* 회의실 카드 그리드 */}
-        <div
-          className="
-            grid grid-flow-row-dense gap-6
-            [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]
-          "
-        >
+        {/* 카드 그리드 */}
+        <div className="grid grid-flow-row-dense gap-6 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]">
           {filteredRooms.map(room => (
             <MeetingRoomCard
               key={room.id}
