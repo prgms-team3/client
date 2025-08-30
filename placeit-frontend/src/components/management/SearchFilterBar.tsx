@@ -26,6 +26,8 @@ type Props<Key extends string = string> = {
 
   /** 래퍼 클래스 */
   className?: string;
+  /** 추가 UI용 슬롯 */
+  children?: React.ReactNode;
 };
 
 export default function SearchFilterBar<Key extends string = string>({
@@ -36,19 +38,20 @@ export default function SearchFilterBar<Key extends string = string>({
   activeKey,
   onChange,
   className,
+  children,
 }: Props<Key>) {
   return (
     <div
       role="search"
       className={cn(
         'w-full rounded-lg border border-gray-200 bg-white shadow-sm',
-        'flex items-center justify-between gap-3 p-5 pl-3',
+        'flex items-center gap-3 p-5 pl-3',
         className
       )}
     >
-      {/* 좌: 검색 */}
-      <div className="flex items-center gap-2 flex-1 min-w-0 rounded-lg border border-gray-200 ml-2 py-2">
-        <Search className="h-4 w-4 text-gray-600 ml-3" aria-hidden />
+      {/* 좌: 검색 인풋 */}
+      <div className="flex flex-1 min-w-0 items-center gap-2 rounded-lg border border-gray-200 ml-2 py-2">
+        <Search className="ml-3 h-4 w-4 text-gray-600" aria-hidden />
         <input
           aria-label="검색"
           placeholder={placeholder}
@@ -58,7 +61,7 @@ export default function SearchFilterBar<Key extends string = string>({
         />
       </div>
 
-      {/* 우: 필터 버튼들 (세그먼트 스타일) */}
+      {/* 가운데: 필터 버튼들 */}
       <div className="inline-flex items-center rounded-lg bg-gray-100 p-1">
         {filters.map(f => {
           const active = f.key === activeKey;
@@ -80,6 +83,9 @@ export default function SearchFilterBar<Key extends string = string>({
           );
         })}
       </div>
+
+      {/* 우: 추가 슬롯 (부서 드롭다운) */}
+      {children && <div className="shrink-0">{children}</div>}
     </div>
   );
 }
