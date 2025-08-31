@@ -9,14 +9,17 @@ import { Users, ArrowLeft, ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useUserStore } from '@/stores/userStore';
 
 export default function InviteCodePage() {
   const [inviteCode, setInviteCode] = useState('');
   const router = useRouter();
+  const { joinWorkspace } = useUserStore();
 
   const handleContinue = () => {
     if (inviteCode.trim()) {
-      // TODO: 초대코드 검증 로직
+      // 초대코드로 워크스페이스 참여 및 일반 사용자 역할 설정
+      joinWorkspace(inviteCode);
       router.push('/dashboard');
     }
   };
