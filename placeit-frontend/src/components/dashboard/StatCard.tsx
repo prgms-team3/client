@@ -14,6 +14,8 @@ interface StatCardProps {
     isPositive: boolean;
   };
   className?: string;
+  onClick?: () => void;
+  clickable?: boolean;
 }
 
 export function StatCard({
@@ -25,9 +27,18 @@ export function StatCard({
   iconBgColor = 'bg-gray-100',
   trend,
   className,
+  onClick,
+  clickable = false,
 }: StatCardProps) {
   return (
-    <Card className={className}>
+    <Card
+      className={`${className} ${
+        clickable
+          ? 'cursor-pointer hover:shadow-md transition-shadow duration-200'
+          : ''
+      }`}
+      onClick={clickable ? onClick : undefined}
+    >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}

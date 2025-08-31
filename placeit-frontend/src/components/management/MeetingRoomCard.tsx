@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Image from 'next/image';
 import {
   Edit2,
   Trash2,
@@ -150,11 +151,13 @@ export default function MeetingRoomCard({
     <div className="w-full rounded-lg border bg-white p-4 shadow">
       {/* 이미지 */}
       <div className="relative overflow-hidden rounded-lg">
-        <img
+        <Image
           src={imageUrl}
           alt={name}
+          width={400}
+          height={225}
           className="aspect-[16/9] w-full object-cover"
-          loading="lazy"
+          priority={false}
         />
         <span
           className={`absolute right-2 top-2 z-10 rounded-full px-2 py-1 text-xs font-semibold ${statusBadgeClass(

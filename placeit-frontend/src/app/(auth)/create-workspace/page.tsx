@@ -9,11 +9,13 @@ import { ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useUserStore } from '@/stores/userStore';
 
 export default function CreateWorkspacePage() {
   const [workspaceName, setWorkspaceName] = useState('placeit');
   const [inviteCode, setInviteCode] = useState('CKUYL6');
   const router = useRouter();
+  const { createWorkspace } = useUserStore();
 
   const generateNewCode = () => {
     // 간단한 랜덤 코드 생성 (실제로는 더 복잡한 로직 필요)
@@ -27,7 +29,8 @@ export default function CreateWorkspacePage() {
 
   const handleContinue = () => {
     if (workspaceName.trim() && inviteCode.trim()) {
-      // TODO: 워크스페이스 생성 로직
+      // 워크스페이스 생성 및 관리자 역할 설정
+      createWorkspace(workspaceName);
       router.push('/dashboard');
     }
   };

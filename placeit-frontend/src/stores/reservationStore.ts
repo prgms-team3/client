@@ -47,7 +47,7 @@ export const useReservationStore = create<ReservationStore>()(
       // 초기 상태
       reservations: [],
       selectedDate: new Date(),
-      currentView: 'day',
+      currentView: 'month',
       rooms: sampleRooms,
       isInitialized: false,
       error: null,
