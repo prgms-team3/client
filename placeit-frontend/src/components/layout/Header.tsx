@@ -3,9 +3,11 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Copy, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useUserStore } from '@/stores/userStore';
 
 export function Header() {
   const router = useRouter();
+  const { user } = useUserStore();
 
   const handleCopy = () => {
     navigator.clipboard.writeText('STARTUP2024');
@@ -22,7 +24,10 @@ export function Header() {
   return (
     <header className="bg-white border-b border-gray-200">
       <div className="flex items-center justify-between px-6 py-4">
-        <div className="brand-logo">
+        <div
+          className="brand-logo flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={() => router.push('/dashboard')}
+        >
           <Image
             src="/icon.svg"
             alt="PlaceIt Icon"
@@ -43,7 +48,13 @@ export function Header() {
           <div className="flex items-center gap-2">
             <span className="text-gray-700">경영진</span>
             <span className="text-gray-400">|</span>
-            <span className="text-blue-600">홍길동 (관리자)</span>
+            <span
+              className={`${
+                user.role === 'admin' ? 'text-red-600' : 'text-blue-600'
+              }`}
+            >
+              {user.name} ({user.role === 'admin' ? '관리자' : '사용자'})
+            </span>
             <span className="text-gray-400">|</span>
             <div className="flex items-center">
               <span className="text-blue-600">STARTUP2024</span>

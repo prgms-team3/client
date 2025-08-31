@@ -27,7 +27,7 @@ function Calendar({
   reservations?: Array<{
     id: string;
     title: string;
-    date: string;
+    date: string | Date;
     time: string;
     room: string;
     status: string;
@@ -211,7 +211,7 @@ function CalendarDayButton({
   reservations?: Array<{
     id: string;
     title: string;
-    date: string;
+    date: string | Date;
     time: string;
     room: string;
     status: string;
@@ -225,7 +225,10 @@ function CalendarDayButton({
 
   // 해당 날짜의 예약 찾기
   const dayReservations = reservations.filter(reservation => {
-    const reservationDate = new Date(reservation.date);
+    const reservationDate =
+      reservation.date instanceof Date
+        ? reservation.date
+        : new Date(reservation.date);
     return (
       reservationDate.getDate() === day.date.getDate() &&
       reservationDate.getMonth() === day.date.getMonth() &&

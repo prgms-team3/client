@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { MeetingRoomCard } from '@/components/dashboard/MeetingRoomCard';
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { rooms, reservations } = useReservationStore();
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
@@ -30,6 +32,29 @@ export default function DashboardPage() {
   const [showReservationModal, setShowReservationModal] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
+  const [currentTime, setCurrentTime] = useState<string>('');
+
+  // 현재 시간 업데이트 (클라이언트 전용)
+  useEffect(() => {
+    const updateTime = () => {
+      setCurrentTime(
+        new Date().toLocaleString('ko-KR', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          weekday: 'long',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        })
+      );
+    };
+
+    updateTime(); // 초기 설정
+    const interval = setInterval(updateTime, 1000); // 1초마다 업데이트
+
+    return () => clearInterval(interval);
+  }, []);
 
   // 페이지 로드 시 초기 버튼 상태 설정
   useEffect(() => {
@@ -61,7 +86,7 @@ export default function DashboardPage() {
     <MainLayout activePage="dashboard">
       <div className="p-6 pb-12 max-w-7xl mx-auto">
         {/* 대시보드 헤더 */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-12 mt-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
               <div className="w-4 h-4 bg-white rounded-sm"></div>
@@ -80,15 +105,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              {new Date().toLocaleString('ko-KR', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                weekday: 'long',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true,
-              })}
+              {currentTime || '로딩 중...'}
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
@@ -100,7 +117,7 @@ export default function DashboardPage() {
         </div>
 
         {/* 통계 카드 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16 mt-8">
           <StatCard
             title="오늘 예약"
             value="2건"
@@ -108,6 +125,8 @@ export default function DashboardPage() {
             icon={CalendarDays}
             iconColor="text-blue-600"
             iconBgColor="bg-blue-100"
+            clickable={true}
+            onClick={() => router.push('/reservations')}
           />
           <StatCard
             title="확정된 예약"
@@ -116,6 +135,8 @@ export default function DashboardPage() {
             icon={CheckCircle}
             iconColor="text-green-600"
             iconBgColor="bg-green-100"
+            clickable={true}
+            onClick={() => router.push('/reservations/requests')}
           />
         </div>
 
