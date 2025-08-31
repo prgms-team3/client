@@ -5,53 +5,93 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import Link from 'next/link';
+
+import Image from 'next/image';
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">로그인</CardTitle>
-          <CardDescription>PlaceIt 계정으로 로그인하세요</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">이메일</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="이메일을 입력하세요"
-                required
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white to-blue-50/30">
+      <div className="w-full max-w-md">
+        {/* Header Section */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-3 mb-4">
+            <div className="brand-logo">
+              <Image
+                src="/icon.svg"
+                alt="PlaceIt Icon"
+                width={32}
+                height={32}
+                className="w-8 h-8"
+              />
+              <Image
+                src="/logo.svg"
+                alt="PlaceIt"
+                width={120}
+                height={24}
+                className="h-6"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">비밀번호</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="비밀번호를 입력하세요"
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full">
-              로그인
-            </Button>
-          </form>
-          <div className="mt-4 text-center text-sm">
-            <span className="text-gray-600">계정이 없으신가요? </span>
-            <Link href="/signup" className="text-blue-600 hover:underline">
-              회원가입
-            </Link>
           </div>
-        </CardContent>
-      </Card>
+          <p className="text-lg text-gray-600">
+            워크스페이스 회의실 예약 시스템
+          </p>
+        </div>
+
+        {/* Login Card */}
+        <Card className="w-full shadow-xl border-0">
+          <CardContent className="p-8">
+            <div className="text-center mb-8">
+              <CardTitle className="text-2xl font-bold text-gray-900 mb-2">
+                시작하기
+              </CardTitle>
+              <CardDescription className="text-gray-600">
+                소셜 계정으로 간편하게 로그인하세요
+              </CardDescription>
+            </div>
+
+            {/* Social Login Buttons */}
+            <div className="space-y-4 mb-6">
+              {/* Google Login */}
+              <Button
+                variant="outline"
+                className="w-full h-12 border-gray-200 hover:bg-gray-50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                    G
+                  </div>
+                  Google로 계속하기
+                </div>
+              </Button>
+
+              {/* Kakao Login */}
+              <Button className="w-full h-12 bg-yellow-400 hover:bg-yellow-500 text-gray-900 border-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 text-yellow-400 bg-gray-900 rounded-full flex items-center justify-center">
+                    <span className="text-xs font-bold">K</span>
+                  </div>
+                  카카오로 계속하기
+                </div>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Footer */}
+        <div className="mt-8 text-center text-xs text-gray-500">
+          로그인하시면
+          <a href="#" className="text-blue-600 hover:underline">
+            서비스 약관
+          </a>
+          과{' '}
+          <a href="#" className="text-blue-600 hover:underline">
+            개인정보처리방침
+          </a>
+          에 동의하는 것으로 간주됩니다.
+        </div>
+      </div>
     </div>
   );
 }
