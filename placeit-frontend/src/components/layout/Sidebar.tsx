@@ -8,15 +8,20 @@ import {
   Users,
   Tablet,
   Settings,
-  User,
   FileText,
 } from 'lucide-react';
+import { useUserStore } from '@/stores/userStore';
 
 interface SidebarProps {
   activePage?: string;
+  userName?: string;
 }
 
-export function Sidebar({ activePage = 'dashboard' }: SidebarProps) {
+export function Sidebar({
+  activePage = 'dashboard',
+  userName = '김관리자',
+}: SidebarProps) {
+  const { user } = useUserStore();
   // 현재 날짜 정보
   const currentDate = new Date();
   const currentDay = currentDate.getDate();
@@ -113,11 +118,21 @@ export function Sidebar({ activePage = 'dashboard' }: SidebarProps) {
 
           {/* 사용자 정보 */}
           <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 mb-6 shadow-sm">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-md">
-              <User className="w-5 h-5 text-white" />
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md ${
+                user.role === 'admin'
+                  ? 'bg-gradient-to-br from-red-500 to-red-600'
+                  : 'bg-gradient-to-br from-blue-500 to-blue-600'
+              }`}
+            >
+              <span className="text-white font-bold text-sm">
+                {userName.charAt(0)}
+              </span>
             </div>
             <div>
-              <div className="font-semibold text-sm text-gray-900">관리자</div>
+              <div className="font-semibold text-sm text-gray-900">
+                {userName}
+              </div>
               <div className="text-xs text-gray-600">admin@company.com</div>
             </div>
           </div>
