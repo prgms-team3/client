@@ -135,8 +135,6 @@ const sampleReservations = [
   },
 ];
 
-// timeSlots는 @/data/sampleData에서 import하여 사용
-
 export default function ReservationsPage() {
   const {
     selectedDate,
@@ -745,8 +743,6 @@ export default function ReservationsPage() {
                   toYear={2026}
                   reservations={reservations}
                   showDetailedReservations={true}
-                  month={selectedDate || undefined}
-                  onMonthChange={date => setSelectedDate(date)}
                   disabled={date => {
                     // 주말 비활성화
                     const day = date.getDay();
