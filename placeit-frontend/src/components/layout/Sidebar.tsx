@@ -17,6 +17,11 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activePage = 'dashboard' }: SidebarProps) {
+  // 현재 날짜 정보
+  const currentDate = new Date();
+  const currentDay = currentDate.getDate();
+  const currentMonth = currentDate.getMonth() + 1;
+
   const navigationItems = [
     {
       id: 'dashboard',
@@ -33,6 +38,22 @@ export function Sidebar({ activePage = 'dashboard' }: SidebarProps) {
       icon: Calendar,
       href: '/reservations',
       badge: '5',
+      subItems: [
+        {
+          id: 'reservation-status',
+          label: '예약 현황',
+          subtitle: '일/주/월 뷰 예약 확인',
+          href: '/reservations',
+          icon: Calendar,
+        },
+        {
+          id: 'reservation-requests',
+          label: '예약 요청 관리',
+          subtitle: '승인/거부 처리',
+          href: '/reservations/requests',
+          icon: FileText,
+        },
+      ],
     },
     {
       id: 'meeting-rooms',
@@ -64,7 +85,7 @@ export function Sidebar({ activePage = 'dashboard' }: SidebarProps) {
     {
       id: 'today-reservations',
       label: '오늘 예약',
-      subtitle: '09:00-10:00에 첫 회의',
+      subtitle: `${currentMonth}월 ${currentDay}일 예약 현황`,
       icon: Calendar,
       badge: '2건',
       badgeColor: 'bg-blue-500',
@@ -109,7 +130,15 @@ export function Sidebar({ activePage = 'dashboard' }: SidebarProps) {
             <ul className="space-y-1">
               {navigationItems.map(item => {
                 const Icon = item.icon;
-                const isActive = activePage === item.id;
+                const isActive =
+                  activePage === item.id ||
+                  (item.subItems &&
+                    item.subItems.some(
+                      subItem =>
+                        activePage === subItem.id ||
+                        (activePage === 'reservations' &&
+                          subItem.id === 'reservation-status')
+                    ));
 
                 return (
                   <li key={item.id}>
@@ -161,6 +190,54 @@ export function Sidebar({ activePage = 'dashboard' }: SidebarProps) {
                         </Badge>
                       )}
                     </Link>
+
+                    {/* 하위메뉴 */}
+                    {item.subItems && isActive && (
+                      <ul className="ml-6 mt-2 space-y-1">
+                        {item.subItems.map(subItem => {
+                          const SubIcon = subItem.icon;
+                          const isSubActive =
+                            activePage === subItem.id ||
+                            (activePage === 'reservations' &&
+                              subItem.id === 'reservation-status');
+
+                          return (
+                            <li key={subItem.id}>
+                              <Link
+                                href={subItem.href}
+                                className={`flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${
+                                  isSubActive
+                                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+                                }`}
+                              >
+                                <SubIcon className="w-4 h-4" />
+                                <div className="text-left">
+                                  <div
+                                    className={`font-medium text-sm ${
+                                      isSubActive
+                                        ? 'text-blue-700'
+                                        : 'text-gray-700'
+                                    }`}
+                                  >
+                                    {subItem.label}
+                                  </div>
+                                  <div
+                                    className={`text-xs ${
+                                      isSubActive
+                                        ? 'text-blue-500'
+                                        : 'text-gray-500'
+                                    }`}
+                                  >
+                                    {subItem.subtitle}
+                                  </div>
+                                </div>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </li>
                 );
               })}
