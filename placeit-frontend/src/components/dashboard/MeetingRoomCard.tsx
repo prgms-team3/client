@@ -6,45 +6,48 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-  CardFooter,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Users, Building } from 'lucide-react';
 
 interface MeetingRoomCardProps {
-  id: string;
   name: string;
   description: string;
   capacity: number;
   features: string[];
-  status: 'available' | 'occupied' | 'maintenance';
-  imageUrl: string;
-  onReserve: (roomId: string) => void;
+  status: 'available' | 'occupied' | 'reserved' | 'maintenance';
+  imageUrl?: string;
   isSelected?: boolean;
   onSelect?: () => void;
   reservedTime?: string;
 }
 
 export function MeetingRoomCard({
-  id,
   name,
   description,
   capacity,
   features,
   status,
   imageUrl,
-  onReserve,
   isSelected = false,
   onSelect,
   reservedTime,
 }: MeetingRoomCardProps) {
+  // 상수 정의
+  const CARD_DIMENSIONS = {
+    minHeight: 'min-h-[400px]',
+    maxWidth: 'max-w-[280px]',
+    imageHeight: 'h-48',
+  } as const;
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'available':
         return 'bg-green-500';
       case 'occupied':
         return 'bg-red-500';
+      case 'reserved':
+        return 'bg-orange-500';
       case 'maintenance':
         return 'bg-yellow-500';
       default:
@@ -58,6 +61,8 @@ export function MeetingRoomCard({
         return '사용 가능';
       case 'occupied':
         return '사용 중';
+      case 'reserved':
+        return '예약됨';
       case 'maintenance':
         return '점검 중';
       default:
@@ -67,32 +72,42 @@ export function MeetingRoomCard({
 
   return (
     <Card
-      className={`w-full max-w-sm hover:shadow-lg transition-shadow duration-200 cursor-pointer ${
-        isSelected ? 'ring-2 ring-blue-500' : ''
+      className={`w-full ${
+        CARD_DIMENSIONS.maxWidth
+      } h-full hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col ${
+        CARD_DIMENSIONS.minHeight
+      } border-2 ${
+        isSelected
+          ? 'border-blue-500 shadow-xl bg-blue-50 ring-4 ring-blue-200'
+          : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
       }`}
       onClick={onSelect}
     >
       <CardHeader className="relative pb-3">
-        <div className="h-48 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg overflow-hidden mb-4 relative">
-          <Image
-            src={imageUrl}
-            alt={name}
-            width={400}
-            height={192}
-            className="w-full h-full object-cover"
-            onError={e => {
-              const target = e.target as HTMLImageElement;
-              target.style.display = 'none';
-              const placeholder = target.nextElementSibling as HTMLElement;
-              if (placeholder) {
-                placeholder.style.display = 'flex';
-              }
-            }}
-          />
-          {/* 기본 이미지 플레이스홀더 (이미지 로드 실패 시) */}
+        <div
+          className={`${CARD_DIMENSIONS.imageHeight} bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg overflow-hidden mb-4 relative`}
+        >
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={name}
+              fill
+              className="object-cover"
+              onError={e => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const placeholder = target.nextElementSibling as HTMLElement;
+                if (placeholder) {
+                  placeholder.style.display = 'flex';
+                }
+              }}
+            />
+          ) : null}
+          {/* 기본 이미지 플레이스홀더 (이미지가 없거나 로드 실패 시) */}
           <div
-            className="w-full h-full items-center justify-center"
-            style={{ display: 'none' }}
+            className={`w-full h-full items-center justify-center ${
+              imageUrl ? 'hidden' : 'flex'
+            }`}
           >
             <div className="text-center">
               <div className="w-16 h-16 bg-blue-200 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -115,7 +130,7 @@ export function MeetingRoomCard({
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="pb-4">
+      <CardContent className="pb-4 flex-1">
         <div className="space-y-3">
           {/* 수용 인원 */}
           <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -141,30 +156,26 @@ export function MeetingRoomCard({
             </div>
           </div>
 
-          {/* 예약 시간 (사용 중인 경우) */}
-          {status === 'occupied' && reservedTime && (
-            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
-              <span className="text-xs text-red-700 font-medium">
-                예약 시간: {reservedTime}
+          {/* 예약 시간 표시 */}
+          {reservedTime && (
+            <div
+              className={`mt-2 p-2 rounded-lg border ${
+                status === 'occupied'
+                  ? 'bg-red-50 border-red-200'
+                  : 'bg-orange-50 border-orange-200'
+              }`}
+            >
+              <span
+                className={`text-xs font-medium ${
+                  status === 'occupied' ? 'text-red-700' : 'text-orange-700'
+                }`}
+              >
+                {status === 'occupied' ? '사용 중' : '예약됨'}: {reservedTime}
               </span>
             </div>
           )}
         </div>
       </CardContent>
-
-      <CardFooter>
-        <Button
-          className={`w-full ${
-            status === 'available'
-              ? 'bg-blue-600 hover:bg-blue-700'
-              : 'bg-gray-300 text-gray-600 cursor-not-allowed'
-          }`}
-          disabled={status !== 'available'}
-          onClick={() => onReserve(id)}
-        >
-          {status === 'available' ? '예약하기' : '예약 불가'}
-        </Button>
-      </CardFooter>
     </Card>
   );
 }

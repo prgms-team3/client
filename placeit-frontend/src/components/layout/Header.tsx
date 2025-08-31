@@ -2,14 +2,21 @@ import React from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Copy, LogOut } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export function Header() {
+  const router = useRouter();
+
   const handleCopy = () => {
     navigator.clipboard.writeText('STARTUP2024');
   };
 
   const handleLogout = () => {
-    console.log('로그아웃');
+    // TODO: 실제 로그아웃 로직 (세션 제거, 토큰 삭제 등)
+    console.log('로그아웃 처리 중...');
+
+    // 로그인 페이지로 이동
+    router.push('/login');
   };
 
   return (

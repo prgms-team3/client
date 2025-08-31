@@ -1,0 +1,83 @@
+import { MeetingRoom } from '@/types';
+
+// 회의실 샘플 데이터
+export const sampleRooms: MeetingRoom[] = [
+  {
+    id: '1',
+    name: '회의실1',
+    description: '소규모 팀 회의에 적합',
+    capacity: 8,
+    features: ['프로젝터', '화이트보드', 'WiFi'],
+    status: 'available' as const,
+    imageUrl: '/images/meeting-room-1.jpg',
+  },
+  {
+    id: '2',
+    name: '소회의실',
+    description: '간단한 미팅용',
+    capacity: 4,
+    features: ['모니터', 'WiFi'],
+    status: 'available' as const,
+    imageUrl: '/images/meeting-room-2.jpg',
+  },
+  {
+    id: '3',
+    name: '대회의실',
+    description: '대규모 회의 및 발표',
+    capacity: 20,
+    features: ['프로젝터', '화이트보드', '오디오', 'WiFi'],
+    status: 'occupied' as const,
+    imageUrl: '/images/meeting-room-3.jpg',
+    reservedTime: '10:00-10:30',
+  },
+  {
+    id: '4',
+    name: '창의실',
+    description: '브레인스토밍 및 아이디어 회의',
+    capacity: 6,
+    features: ['화이트보드', 'WiFi', 'TV'],
+    status: 'available' as const,
+    imageUrl: '/images/meeting-room-4.jpg',
+  },
+  {
+    id: '5',
+    name: '미니룸',
+    description: '1:1 면담 및 소규모 미팅',
+    capacity: 2,
+    features: ['WiFi', '모니터'],
+    status: 'available' as const,
+    imageUrl: '/images/meeting-room-5.jpg',
+  },
+  {
+    id: '6',
+    name: '세미나실',
+    description: '교육 및 세미나 진행',
+    capacity: 15,
+    features: ['프로젝터', '스크린', '오디오', 'WiFi'],
+    status: 'available' as const,
+    imageUrl: '/images/meeting-room-6.jpg',
+  },
+];
+
+// 시간 슬롯 데이터
+export const timeSlots = [
+  '09:00',
+  '09:30',
+  '10:00',
+  '10:30',
+  '11:00',
+  '11:30',
+  '12:00',
+  '12:30',
+  '13:00',
+  '13:30',
+  '14:00',
+  '14:30',
+  '15:00',
+  '15:30',
+  '16:00',
+  '16:30',
+  '17:00',
+  '17:30',
+  '18:00',
+];
