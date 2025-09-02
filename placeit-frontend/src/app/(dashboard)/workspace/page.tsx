@@ -10,7 +10,7 @@ import { LayoutGrid, Users, Crown, Mail } from 'lucide-react';
 import AddWorkspaceDialog, {
   type NewWorkspace,
 } from '@/components/management/AddWorkspaceDialog';
-import WorkspaceCard from '@/components/management/WorkspaceCard'; // ✅ 카드 컴포넌트 import
+import WorkspaceCard from '@/components/management/WorkspaceCard';
 
 type WSStatus = 'active' | 'inactive';
 type WSFilter = 'all' | WSStatus;
@@ -24,8 +24,8 @@ const FILTERS: FilterItem<WSFilter>[] = [
 type Workspace = {
   id: string;
   name: string;
-  description: string; // ✅ 카드용
-  imageUrl?: string; // ✅ 카드용
+  description: string;
+  imageUrl?: string;
   inviteCode: string;
   owner: string;
   members: number;
@@ -95,7 +95,12 @@ export default function WorkspacesPage() {
   }, [workspaces, q, k]);
 
   const handleCreate = (ws: NewWorkspace) => {
-    const id = (crypto as any)?.randomUUID?.() ?? `ws_${Date.now()}`;
+    const id =
+      (typeof globalThis !== 'undefined' &&
+        globalThis.crypto &&
+        typeof globalThis.crypto.randomUUID === 'function' &&
+        globalThis.crypto.randomUUID()) ||
+      `ws_${Date.now()}`;
     const inviteCode = `WS-${Math.random()
       .toString(36)
       .slice(2, 6)
@@ -105,7 +110,7 @@ export default function WorkspacesPage() {
       {
         id,
         name: ws.name,
-        description: ws.description, // ✅ 다이얼로그 입력 반영
+        description: ws.description,
         imageUrl:
           'https://images.unsplash.com/photo-1497366216548-37526070297c', // 기본 이미지
         owner: '나', // 로그인 유저명으로 교체

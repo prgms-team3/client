@@ -56,10 +56,13 @@ export default function WorkspaceCard({
     <div className="overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md">
       {/* 이미지 + 상태 배지 */}
       <div className="relative">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={imageUrl}
           alt={`${name} cover`}
           className="h-40 w-full object-cover"
+          loading="lazy"
+          decoding="async"
         />
         <span
           className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow ${
