@@ -11,8 +11,11 @@ import {
   Tablet,
   Settings,
   FileText,
+  UserCog,
+  Shield,
 } from 'lucide-react';
 import { useUserStore } from '@/stores/userStore';
+import { usePathname } from 'next/navigation';
 
 interface SidebarProps {
   activePage?: string;
@@ -24,10 +27,11 @@ export function Sidebar({
   userName = '김관리자',
 }: SidebarProps) {
   const { user } = useUserStore();
-  // 현재 날짜 정보
   const currentDate = new Date();
   const currentDay = currentDate.getDate();
   const currentMonth = currentDate.getMonth() + 1;
+  const pathname = usePathname();
+  const normalize = (p: string) => (p.endsWith('/') ? p.slice(0, -1) : p);
 
   const navigationItems = [
     {
@@ -77,7 +81,24 @@ export function Sidebar({
       icon: Users,
       href: '/users',
       badge: '24',
+      subItems: [
+        {
+          id: 'user-management',
+          label: '사용자 관리',
+          subtitle: '개별 사용자 권한 설정',
+          href: '/users', // 목록/개별 사용자 권한 페이지
+          icon: UserCog, // (원하면 Users로 둬도 OK)
+        },
+        {
+          id: 'group-management',
+          label: '그룹 관리',
+          subtitle: '그룹별 권한 관리',
+          href: '/users/groups', // 그룹 관리 페이지
+          icon: Shield, // (원하면 Users로 둬도 OK)
+        },
+      ],
     },
+
     {
       id: 'workspace',
       label: '워크스페이스 관리',
@@ -148,14 +169,8 @@ export function Sidebar({
               {navigationItems.map(item => {
                 const Icon = item.icon;
                 const isActive =
-                  activePage === item.id ||
-                  (item.subItems &&
-                    item.subItems.some(
-                      subItem =>
-                        activePage === subItem.id ||
-                        (activePage === 'reservations' &&
-                          subItem.id === 'reservation-status')
-                    ));
+                  normalize(pathname) === normalize(item.href) ||
+                  pathname.startsWith(`${normalize(item.href)}/`);
 
                 return (
                   <li key={item.id}>
@@ -214,9 +229,7 @@ export function Sidebar({
                         {item.subItems.map(subItem => {
                           const SubIcon = subItem.icon;
                           const isSubActive =
-                            activePage === subItem.id ||
-                            (activePage === 'reservations' &&
-                              subItem.id === 'reservation-status');
+                            normalize(pathname) === normalize(subItem.href);
 
                           return (
                             <li key={subItem.id}>
@@ -327,13 +340,6 @@ export function Sidebar({
               <div className="text-xs text-gray-500">프로필 설정</div>
             </div>
           </Link>
-        </div>
-
-        {/* 하단 N 로고 */}
-        <div className="absolute bottom-4 left-4">
-          <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer">
-            <span className="text-white font-bold text-lg">N</span>
-          </div>
         </div>
       </div>
     </aside>
