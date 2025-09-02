@@ -21,7 +21,7 @@ export function MainLayout({
 
       <div className="flex flex-1 overflow-hidden">
         {/* 사이드바 */}
-        <Sidebar activePage={activePage} userName={user.name} />
+        <Sidebar activePage={activePage} userName={user?.name ?? '게스트'} />
 
         {/* 메인 콘텐츠 */}
         <main className="flex-1 overflow-y-auto bg-gray-50">{children}</main>
