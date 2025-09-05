@@ -27,7 +27,14 @@ export function Sidebar({
   activePage = 'dashboard',
   userName = '김관리자',
 }: SidebarProps) {
-  const { user } = useUserStore();
+  // ✅ selector로 필요한 값만 구독 (안전)
+  const user = useUserStore(s => s.user);
+
+  // ✅ 마운트 가드 (SSR → CSR 전환 시점 불일치 방지)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
   const currentDate = new Date();
   const currentDay = currentDate.getDate();
   const currentMonth = currentDate.getMonth() + 1;
@@ -42,23 +49,23 @@ export function Sidebar({
     (async () => {
       try {
         const res = await fetchMyWorkspaces();
-
-        // 응답이 배열인 경우 vs { workspaces: [...] }인 경우 모두 처리
         const items = Array.isArray(res)
           ? res
           : Array.isArray(res?.workspaces)
           ? res.workspaces
           : [];
-
-        // 삭제/비활성 필터가 필요하면 여기서 걸러줘
-        const visible = items.filter((w: any) => !w?.deleted); // 필요 없으면 이 줄 삭제
+        const visible = items.filter((w: any) => !w?.deleted);
         setWorkspaceCount(visible.length);
       } catch (e) {
         console.error('워크스페이스 불러오기 실패:', e);
-        setWorkspaceCount(0); // 실패 시 0으로
+        setWorkspaceCount(0);
       }
     })();
   }, []);
+
+  // ✅ role 안전 처리(+대소문자 혼용 방지)
+  const roleKey = (user?.role ?? 'guest').toString().toUpperCase();
+  const isAdmin = roleKey === 'ADMIN' || roleKey === 'SUPER_ADMIN';
 
   const navigationItems = [
     {
@@ -113,15 +120,15 @@ export function Sidebar({
           id: 'user-management',
           label: '사용자 관리',
           subtitle: '개별 사용자 권한 설정',
-          href: '/users', // 목록/개별 사용자 권한 페이지
-          icon: UserCog, // (원하면 Users로 둬도 OK)
+          href: '/users',
+          icon: UserCog,
         },
         {
           id: 'group-management',
           label: '그룹 관리',
           subtitle: '그룹별 권한 관리',
-          href: '/users/groups', // 그룹 관리 페이지
-          icon: Shield, // (원하면 Users로 둬도 OK)
+          href: '/users/groups',
+          icon: Shield,
         },
       ],
     },
@@ -170,7 +177,7 @@ export function Sidebar({
           <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 mb-6 shadow-sm">
             <div
               className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md ${
-                user.role === 'admin'
+                isAdmin
                   ? 'bg-gradient-to-br from-red-500 to-red-600'
                   : 'bg-gradient-to-br from-blue-500 to-blue-600'
               }`}
