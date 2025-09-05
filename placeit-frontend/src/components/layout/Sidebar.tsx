@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -8,14 +8,15 @@ import {
   Calendar,
   Building,
   Users,
-  Tablet,
   Settings,
   FileText,
   UserCog,
   Shield,
+  Building2,
 } from 'lucide-react';
 import { useUserStore } from '@/stores/userStore';
 import { usePathname } from 'next/navigation';
+import { fetchMyWorkspaces } from '@/services/workspaces';
 
 interface SidebarProps {
   activePage?: string;
@@ -26,12 +27,45 @@ export function Sidebar({
   activePage = 'dashboard',
   userName = '김관리자',
 }: SidebarProps) {
-  const { user } = useUserStore();
+  // ✅ selector로 필요한 값만 구독 (안전)
+  const user = useUserStore(s => s.user);
+
+  // ✅ 마운트 가드 (SSR → CSR 전환 시점 불일치 방지)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
   const currentDate = new Date();
   const currentDay = currentDate.getDate();
   const currentMonth = currentDate.getMonth() + 1;
+
+  const [workspaceCount, setWorkspaceCount] = useState<number>(0);
+
   const pathname = usePathname();
   const normalize = (p: string) => (p.endsWith('/') ? p.slice(0, -1) : p);
+
+  // 워크스페이스 개수 가져오기
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetchMyWorkspaces();
+        const items = Array.isArray(res)
+          ? res
+          : Array.isArray(res?.workspaces)
+          ? res.workspaces
+          : [];
+        const visible = items.filter((w: any) => !w?.deleted);
+        setWorkspaceCount(visible.length);
+      } catch (e) {
+        console.error('워크스페이스 불러오기 실패:', e);
+        setWorkspaceCount(0);
+      }
+    })();
+  }, []);
+
+  // ✅ role 안전 처리(+대소문자 혼용 방지)
+  const roleKey = (user?.role ?? 'guest').toString().toUpperCase();
+  const isAdmin = roleKey === 'ADMIN' || roleKey === 'SUPER_ADMIN';
 
   const navigationItems = [
     {
@@ -86,15 +120,15 @@ export function Sidebar({
           id: 'user-management',
           label: '사용자 관리',
           subtitle: '개별 사용자 권한 설정',
-          href: '/users', // 목록/개별 사용자 권한 페이지
-          icon: UserCog, // (원하면 Users로 둬도 OK)
+          href: '/users',
+          icon: UserCog,
         },
         {
           id: 'group-management',
           label: '그룹 관리',
           subtitle: '그룹별 권한 관리',
-          href: '/users/groups', // 그룹 관리 페이지
-          icon: Shield, // (원하면 Users로 둬도 OK)
+          href: '/users/groups',
+          icon: Shield,
         },
       ],
     },
@@ -103,9 +137,9 @@ export function Sidebar({
       id: 'workspace',
       label: '워크스페이스 관리',
       subtitle: '초대코드 관리',
-      icon: Tablet,
+      icon: Building2,
       href: '/workspace',
-      badge: '2',
+      badge: workspaceCount > 0 ? String(workspaceCount) : null,
     },
   ];
 
@@ -143,7 +177,7 @@ export function Sidebar({
           <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 mb-6 shadow-sm">
             <div
               className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md ${
-                user.role === 'admin'
+                isAdmin
                   ? 'bg-gradient-to-br from-red-500 to-red-600'
                   : 'bg-gradient-to-br from-blue-500 to-blue-600'
               }`}

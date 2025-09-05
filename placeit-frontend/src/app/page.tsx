@@ -78,7 +78,7 @@ export default function HomePage() {
               />
             </div>
 
-            <Link href="/dashboard">
+            <Link href="/login">
               <Button>서비스 시작하기</Button>
             </Link>
           </div>
@@ -100,7 +100,7 @@ export default function HomePage() {
               직관적인 인터페이스와 강력한 기능으로 공간 활용도를 극대화하세요.
             </p>
             <div className="flex justify-center">
-              <Link href="/dashboard">
+              <Link href="/login">
                 <Button size="lg" className="min-w-[200px]">
                   서비스 시작하기
                 </Button>
@@ -168,7 +168,7 @@ export default function HomePage() {
             <p className="text-xl opacity-90 mb-8 max-w-2xl mx-auto">
               무료로 PlaceIt을 체험하고 공간 관리의 새로운 차원을 경험해보세요.
             </p>
-            <Link href="/dashboard">
+            <Link href="/login">
               <Button size="lg" variant="secondary" className="min-w-[200px]">
                 서비스 시작하기
               </Button>
