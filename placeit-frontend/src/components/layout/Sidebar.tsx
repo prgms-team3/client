@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -8,14 +8,15 @@ import {
   Calendar,
   Building,
   Users,
-  Tablet,
   Settings,
   FileText,
   UserCog,
   Shield,
+  Building2,
 } from 'lucide-react';
 import { useUserStore } from '@/stores/userStore';
 import { usePathname } from 'next/navigation';
+import { fetchMyWorkspaces } from '@/services/workspaces';
 
 interface SidebarProps {
   activePage?: string;
@@ -30,8 +31,34 @@ export function Sidebar({
   const currentDate = new Date();
   const currentDay = currentDate.getDate();
   const currentMonth = currentDate.getMonth() + 1;
+
+  const [workspaceCount, setWorkspaceCount] = useState<number>(0);
+
   const pathname = usePathname();
   const normalize = (p: string) => (p.endsWith('/') ? p.slice(0, -1) : p);
+
+  // 워크스페이스 개수 가져오기
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetchMyWorkspaces();
+
+        // 응답이 배열인 경우 vs { workspaces: [...] }인 경우 모두 처리
+        const items = Array.isArray(res)
+          ? res
+          : Array.isArray(res?.workspaces)
+          ? res.workspaces
+          : [];
+
+        // 삭제/비활성 필터가 필요하면 여기서 걸러줘
+        const visible = items.filter((w: any) => !w?.deleted); // 필요 없으면 이 줄 삭제
+        setWorkspaceCount(visible.length);
+      } catch (e) {
+        console.error('워크스페이스 불러오기 실패:', e);
+        setWorkspaceCount(0); // 실패 시 0으로
+      }
+    })();
+  }, []);
 
   const navigationItems = [
     {
@@ -103,9 +130,9 @@ export function Sidebar({
       id: 'workspace',
       label: '워크스페이스 관리',
       subtitle: '초대코드 관리',
-      icon: Tablet,
+      icon: Building2,
       href: '/workspace',
-      badge: '2',
+      badge: workspaceCount > 0 ? String(workspaceCount) : null,
     },
   ];
 
