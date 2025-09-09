@@ -4,21 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Copy, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/stores/userStore';
+import { useLogout } from '@/hooks/useLogout';
 
 export function Header() {
   const router = useRouter();
   const { user } = useUserStore();
+  const { logout, loading } = useLogout({ redirectTo: '/login' });
 
   const handleCopy = () => {
     navigator.clipboard.writeText('STARTUP2024');
-  };
-
-  const handleLogout = () => {
-    // TODO: 실제 로그아웃 로직 (세션 제거, 토큰 삭제 등)
-    console.log('로그아웃 처리 중...');
-
-    // 로그인 페이지로 이동
-    router.push('/login');
   };
 
   return (
@@ -46,14 +40,14 @@ export function Header() {
 
         <div className="flex items-center gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <span className="text-gray-700">경영진</span>
+            <span className="text-gray-700">게스트</span>
             <span className="text-gray-400">|</span>
             <span
               className={`${
-                user.role === 'admin' ? 'text-red-600' : 'text-blue-600'
+                user?.role === 'admin' ? 'text-red-600' : 'text-blue-600'
               }`}
             >
-              {user.name} ({user.role === 'admin' ? '관리자' : '사용자'})
+              {user?.name} ({user?.role === 'admin' ? '관리자' : '사용자'})
             </span>
             <span className="text-gray-400">|</span>
             <div className="flex items-center">
@@ -74,11 +68,14 @@ export function Header() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={handleLogout}
+              onClick={logout}
+              disabled={loading}
               className="flex items-center gap-2 text-red-600 hover:bg-red-50 px-3 py-1"
             >
               <LogOut className="w-4 h-4" />
-              <span className="text-sm">로그아웃</span>
+              <span className="text-sm">
+                {loading ? '로그아웃 중…' : '로그아웃'}
+              </span>
             </Button>
           </div>
         </div>
