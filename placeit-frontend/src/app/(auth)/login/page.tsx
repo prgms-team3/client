@@ -7,14 +7,10 @@ import {
   CardDescription,
   CardTitle,
 } from '@/components/ui/card';
+
 import Image from 'next/image';
 
 export default function LoginPage() {
-  const handleKakaoLogin = () => {
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL!;
-    window.location.href = `${base}/auth/kakao`;
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white to-blue-50/30">
       <div className="w-full max-w-md">
@@ -71,10 +67,7 @@ export default function LoginPage() {
               </Button>
 
               {/* Kakao Login */}
-              <Button
-                onClick={handleKakaoLogin}
-                className="w-full h-12 bg-yellow-400 hover:bg-yellow-500 text-gray-900 border-0"
-              >
+              <Button className="w-full h-12 bg-yellow-400 hover:bg-yellow-500 text-gray-900 border-0">
                 <div className="flex items-center gap-3">
                   <div className="w-5 h-5 text-yellow-400 bg-gray-900 rounded-full flex items-center justify-center">
                     <span className="text-xs font-bold">K</span>
@@ -88,7 +81,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="mt-8 text-center text-xs text-gray-500">
-          로그인하시면{' '}
+          로그인하시면
           <a href="#" className="text-blue-600 hover:underline">
             서비스 약관
           </a>
