@@ -2,88 +2,62 @@
 
 import * as React from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X as XIcon, Plus, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { X as XIcon, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export type NewWorkspace = {
-  name: string;
-  description: string;
-  owner: string;
-  maxMembers: number;
-  /** 서버로 업로드할 때 file 혹은 미리보기용 dataUrl 중 하나를 활용하세요 */
-  imageFile?: File | null;
-  imageUrl?: string | null; // objectURL or dataURL (preview)
-};
+import type {
+  Workspace,
+  CreateWorkspace,
+  UpdateWorkspace,
+} from '@/types/workspace';
+import { createWorkspace, updateWorkspace } from '@/services/workspaces';
+
+type Mode = 'create' | 'edit';
 
 type Props = {
-  onCreate: (data: NewWorkspace) => void;
+  mode?: Mode;
+  initial?: Partial<Workspace>;
+  onCreated?: (data: Workspace) => void;
+  onUpdated?: (data: Workspace) => void;
+  open?: boolean;
+  onOpenChange?: (o: boolean) => void;
 };
 
-export default function AddWorkspaceDialog({ onCreate }: Props) {
-  const [open, setOpen] = React.useState(false);
+export default function AddWorkspaceDialog({
+  mode = 'create',
+  initial,
+  onCreated,
+  onUpdated,
+  open: controlledOpen,
+  onOpenChange,
+}: Props) {
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
 
-  const [name, setName] = React.useState('');
-  const [description, setDescription] = React.useState('');
-  const [owner, setOwner] = React.useState('');
-  const [maxMembers, setMaxMembers] = React.useState<number | ''>('');
-
+  const [name, setName] = React.useState(initial?.name ?? '');
+  const [description, setDescription] = React.useState(
+    initial?.description ?? ''
+  );
   const [imageFile, setImageFile] = React.useState<File | null>(null);
-  const [imageUrl, setImageUrl] = React.useState<string | null>(null); // preview
+  const [imageUrl, setImageUrl] = React.useState<string | null>(
+    initial?.imageUrl ?? null
+  );
 
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const reset = () => {
-    setName('');
-    setDescription('');
-    setOwner('');
-    setMaxMembers('');
-    setImageFile(null);
-    if (imageUrl) URL.revokeObjectURL(imageUrl);
-    setImageUrl(null);
-    setError(null);
-  };
+  React.useEffect(() => {
+    if (initial) {
+      setName(initial.name ?? '');
+      setDescription(initial.description ?? '');
+      setImageUrl(initial.imageUrl ?? null);
+    }
+  }, [initial]);
 
   const validate = () => {
     if (!name.trim()) return '워크스페이스명을 입력하세요.';
-    if (!description.trim()) return '설명을 입력하세요.';
-    if (!owner.trim()) return '소유자를 입력하세요.';
-    const n = Number(maxMembers);
-    if (!Number.isFinite(n) || n < 1)
-      return '최대 멤버 수는 1 이상의 숫자여야 합니다.';
-    // 이미지 필수는 아님. 필수로 하려면 아래 주석 해제
-    // if (!imageFile) return '이미지를 선택해주세요.';
     return null;
-  };
-
-  const onSelectImage: React.ChangeEventHandler<HTMLInputElement> = e => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // 간단한 타입/용량 체크(옵션)
-    if (!file.type.startsWith('image/')) {
-      setError('이미지 파일만 업로드할 수 있습니다.');
-      return;
-    }
-    // 5MB 제한 예시
-    if (file.size > 5 * 1024 * 1024) {
-      setError('이미지 용량은 5MB 이하만 가능합니다.');
-      return;
-    }
-
-    setError(null);
-    setImageFile(file);
-    // object URL로 즉시 미리보기
-    const url = URL.createObjectURL(file);
-    // 기존 url revoke
-    if (imageUrl) URL.revokeObjectURL(imageUrl);
-    setImageUrl(url);
-  };
-
-  const clearImage = () => {
-    setImageFile(null);
-    if (imageUrl) URL.revokeObjectURL(imageUrl);
-    setImageUrl(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -95,49 +69,51 @@ export default function AddWorkspaceDialog({ onCreate }: Props) {
     }
     setSubmitting(true);
     try {
-      onCreate({
-        name: name.trim(),
-        description: description.trim(),
-        owner: owner.trim(),
-        maxMembers: Number(maxMembers),
-        imageFile,
-        imageUrl, // 미리보기 url (서버 업로드 완료 후엔 서버 url로 교체)
-      });
-      reset();
+      if (mode === 'create') {
+        const payload: CreateWorkspace = {
+          name: name.trim(),
+          description: description.trim() || undefined,
+          // 이미지 파일을 서버가 받는 방식(FormData)으로 바꿔야 할 수도 있음
+        };
+        const created = await createWorkspace(payload);
+        onCreated?.(created);
+      } else if (mode === 'edit' && initial?.id) {
+        const payload: UpdateWorkspace = {
+          name: name.trim(),
+          description: description.trim() || undefined,
+        };
+        const updated = await updateWorkspace(String(initial.id), payload);
+        onUpdated?.(updated);
+      }
       setOpen(false);
+    } catch (err: any) {
+      const serverMsg = err?.response?.data?.message;
+      setError(serverMsg || err?.message || '요청 실패');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={o => {
-        setOpen(o);
-        if (!o) reset();
-      }}
-    >
-      {/* 트리거: 파란색 버튼 */}
-      <Dialog.Trigger asChild>
-        <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
-          <Plus className="h-4 w-4" />
-          워크스페이스 생성
-        </Button>
-      </Dialog.Trigger>
+    <Dialog.Root open={open} onOpenChange={setOpen}>
+      {mode === 'create' && (
+        <Dialog.Trigger asChild>
+          <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+            <Plus className="h-4 w-4" />
+            워크스페이스 생성
+          </Button>
+        </Dialog.Trigger>
+      )}
 
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[95vw] max-w-xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border bg-white p-6 shadow-xl focus:outline-none">
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[95vw] max-w-xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border bg-white p-6 shadow-xl">
           <div className="mb-4 flex items-start justify-between">
             <Dialog.Title className="text-xl font-semibold text-gray-900">
-              새 워크스페이스 생성
+              {mode === 'create' ? '새 워크스페이스 생성' : '워크스페이스 수정'}
             </Dialog.Title>
             <Dialog.Close asChild>
-              <button
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                aria-label="Close"
-              >
+              <button className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100">
                 <XIcon className="h-5 w-5" />
               </button>
             </Dialog.Close>
@@ -146,13 +122,13 @@ export default function AddWorkspaceDialog({ onCreate }: Props) {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* 워크스페이스명 */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
+              <label className="mb-1 block text-sm font-medium">
                 워크스페이스명 <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-0 focus:border-primary-400"
-                placeholder="예: Place It"
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="예: PlaceIt"
                 value={name}
                 onChange={e => setName(e.target.value)}
               />
@@ -160,60 +136,23 @@ export default function AddWorkspaceDialog({ onCreate }: Props) {
 
             {/* 설명 */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                설명 <span className="text-rose-500">*</span>
-              </label>
+              <label className="mb-1 block text-sm font-medium">설명</label>
               <textarea
-                className="w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-0 focus:border-primary-400"
-                placeholder="워크스페이스의 목적과 특징을 설명해주세요"
-                rows={4}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                rows={3}
                 value={description}
                 onChange={e => setDescription(e.target.value)}
               />
             </div>
 
-            {/* 소유자 */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                소유자 <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-0 focus:border-primary-400"
-                placeholder="예: 홍길동"
-                value={owner}
-                onChange={e => setOwner(e.target.value)}
-              />
-            </div>
-
-            {/* 최대 멤버 수 */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                최대 멤버 수 <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="number"
-                min={1}
-                inputMode="numeric"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-0 focus:border-primary-400"
-                placeholder="예: 50"
-                value={maxMembers}
-                onChange={e =>
-                  setMaxMembers(
-                    e.target.value === '' ? '' : Number(e.target.value)
-                  )
-                }
-              />
-            </div>
-
             {/* 이미지 업로드 */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
+              <label className="mb-1 block text-sm font-medium">
                 이미지 업로드
               </label>
-
               {imageUrl ? (
                 <div className="flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={imageUrl}
                     alt="미리보기"
@@ -223,7 +162,11 @@ export default function AddWorkspaceDialog({ onCreate }: Props) {
                     type="button"
                     variant="outline"
                     className="gap-2 border-gray-300"
-                    onClick={clearImage}
+                    onClick={() => {
+                      setImageFile(null);
+                      if (imageUrl) URL.revokeObjectURL(imageUrl);
+                      setImageUrl(null);
+                    }}
                   >
                     <Trash2 className="h-4 w-4" />
                     제거
@@ -236,34 +179,41 @@ export default function AddWorkspaceDialog({ onCreate }: Props) {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={onSelectImage}
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setImageFile(file);
+                      const url = URL.createObjectURL(file);
+                      if (imageUrl) URL.revokeObjectURL(imageUrl);
+                      setImageUrl(url);
+                    }}
                     className="hidden"
                   />
                 </label>
               )}
-
               <p className="mt-1 text-xs text-gray-500">
                 JPG/PNG, 5MB 이하 권장
               </p>
             </div>
 
-            {error && (
-              <p className="text-sm text-rose-600" role="alert">
-                {error}
-              </p>
-            )}
+            {/* 오류 메시지 */}
+            {error && <p className="text-sm text-rose-600">{error}</p>}
 
-            <div className="mt-2 flex items-center justify-end gap-2">
+            <div className="mt-2 flex justify-end gap-2">
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  className="rounded-md border px-4 py-2 text-sm"
                 >
                   취소
                 </button>
               </Dialog.Close>
               <Button type="submit" disabled={submitting}>
-                {submitting ? '생성 중...' : '생성'}
+                {submitting
+                  ? '처리 중...'
+                  : mode === 'create'
+                  ? '생성'
+                  : '수정'}
               </Button>
             </div>
           </form>
