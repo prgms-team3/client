@@ -6,21 +6,22 @@ import { StatCard } from '@/components/management/StatCard';
 import SearchFilterBar, {
   type FilterItem,
 } from '@/components/management/SearchFilterBar';
-import { LayoutGrid, Users, CheckCircle, Ban } from 'lucide-react';
-import AddWorkspaceDialog from '@/components/management/AddWorkspaceDialog';
+import { LayoutGrid, Users, Crown, Mail } from 'lucide-react';
+import AddWorkspaceDialog, {
+  type NewWorkspace,
+} from '@/components/management/AddWorkspaceDialog';
 import WorkspaceCard from '@/components/management/WorkspaceCard';
-import type { Workspace as ApiWorkspace } from '@/types/workspace';
-import {
-  fetchMyWorkspaces,
-  deleteWorkspace,
-  activateWorkspace,
-  deactivateWorkspace,
-} from '@/services/workspaces';
 
 type WSStatus = 'active' | 'inactive';
 type WSFilter = 'all' | WSStatus;
 
-type WorkspaceUI = {
+const FILTERS: FilterItem<WSFilter>[] = [
+  { key: 'all', label: '전체' },
+  { key: 'active', label: '활성' },
+  { key: 'inactive', label: '비활성' },
+];
+
+type Workspace = {
   id: string;
   name: string;
   description: string;
@@ -29,85 +30,56 @@ type WorkspaceUI = {
   owner: string;
   members: number;
   status: WSStatus;
+  createdAt: string;
 };
-
-const FILTERS: FilterItem<WSFilter>[] = [
-  { key: 'all', label: '전체' },
-  { key: 'active', label: '활성' },
-  { key: 'inactive', label: '비활성' },
-];
-
-const FALLBACK_IMG =
-  'https://images.unsplash.com/photo-1497366216548-37526070297c';
 
 export default function WorkspacesPage() {
   const [q, setQ] = React.useState('');
   const [k, setK] = React.useState<WSFilter>('all');
 
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+  const [workspaces, setWorkspaces] = React.useState<Workspace[]>([
+    {
+      id: 'ws_1',
+      name: 'Startup Hub',
+      description: '혁신적인 스타트업들이 모인 공간',
+      imageUrl: 'https://images.unsplash.com/photo-1497366216548-37526070297c',
+      inviteCode: 'CORE-1A2B',
+      owner: '홍길동',
+      members: 18,
+      status: 'active',
+      createdAt: '2025-08-01',
+    },
+    {
+      id: 'ws_2',
+      name: 'Tech Valley',
+      description: '엔지니어링과 연구 중심의 워크스페이스',
+      imageUrl: 'https://images.unsplash.com/photo-1557804506-669a67965ba0',
+      inviteCode: 'DESN-9XY4',
+      owner: '김디자',
+      members: 22,
+      status: 'active',
+      createdAt: '2025-07-21',
+    },
+    {
+      id: 'ws_3',
+      name: 'Creative Studio',
+      description: '디자인 씽킹과 프로토타이핑을 위한 공간',
+      imageUrl: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c',
+      inviteCode: 'ARCH-7788',
+      owner: '이아카',
+      members: 14,
+      status: 'inactive',
+      createdAt: '2025-06-15',
+    },
+  ]);
 
-  const [workspaces, setWorkspaces] = React.useState<WorkspaceUI[]>([]);
-  const [editOpen, setEditOpen] = React.useState(false);
-  const [editTarget, setEditTarget] = React.useState<WorkspaceUI | null>(null);
+  const pendingInvites = 2;
 
-  const mapToUI = React.useCallback(
-    (api: ApiWorkspace, prev?: WorkspaceUI): WorkspaceUI => ({
-      id: String(api.id ?? prev?.id ?? ''),
-      name: api.name ?? prev?.name ?? '',
-      description: api.description ?? prev?.description ?? '',
-      imageUrl: api.imageUrl ?? prev?.imageUrl ?? FALLBACK_IMG,
-      inviteCode: (api as any).activeInvitationCode ?? prev?.inviteCode ?? '-',
-      owner: (api as any).superAdminName ?? prev?.owner ?? '—',
-      members:
-        typeof (api as any).userCount === 'number'
-          ? (api as any).userCount
-          : prev?.members ?? 0,
-      status: api.isActive ? 'active' : prev?.status ?? 'inactive',
-    }),
-    []
-  );
-
-  // 화면 깜빡임 없이 최신 목록을 가져오는 GET
-  const softRefetch = React.useCallback(async () => {
-    try {
-      const res = await fetchMyWorkspaces();
-      const list: ApiWorkspace[] = (res as any).workspaces ?? res ?? [];
-      setWorkspaces(prev => {
-        const prevMap = new Map(prev.map(p => [p.id, p]));
-        const next = list.map(api => mapToUI(api, prevMap.get(String(api.id))));
-        return next;
-      });
-    } catch (e) {
-      console.warn('[softRefetch] failed', e);
-    }
-  }, [mapToUI]);
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await fetchMyWorkspaces();
-        const list: ApiWorkspace[] = (res as any).workspaces ?? res ?? [];
-        setWorkspaces(list.map(api => mapToUI(api)));
-      } catch (err: any) {
-        setError(
-          err?.response?.data?.message || err?.message || '불러오기 실패'
-        );
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [mapToUI]);
-
-  // 통계
   const totalWorkspaces = workspaces.length;
   const totalMembers = workspaces.reduce((sum, w) => sum + w.members, 0);
   const activeWorkspaces = workspaces.filter(w => w.status === 'active').length;
-  const deactiveWorkspaces = workspaces.length - activeWorkspaces;
 
-  // 검색/필터
+  // 검색
   const filtered = React.useMemo(() => {
     const query = q.trim().toLowerCase();
     const norm = (s: string) => s.toLowerCase();
@@ -122,60 +94,49 @@ export default function WorkspacesPage() {
     });
   }, [workspaces, q, k]);
 
-  // 생성
-  const handleCreated = (api: ApiWorkspace) => {
-    setWorkspaces(prev => {
-      const ui = mapToUI(api);
-      return prev.some(p => p.id === ui.id) ? prev : [ui, ...prev];
-    });
-    softRefetch();
-  };
+  const handleCreate = (ws: NewWorkspace) => {
+    const id =
+      (typeof globalThis !== 'undefined' &&
+        globalThis.crypto &&
+        typeof globalThis.crypto.randomUUID === 'function' &&
+        globalThis.crypto.randomUUID()) ||
+      `ws_${Date.now()}`;
+    const inviteCode = `WS-${Math.random()
+      .toString(36)
+      .slice(2, 6)
+      .toUpperCase()}${Math.floor(Math.random() * 90 + 10)}`;
 
-  // 수정
-  const handleUpdated = (api: ApiWorkspace) => {
-    setWorkspaces(prev =>
-      prev.map(w => (w.id === String(api.id) ? mapToUI(api, w) : w))
-    );
-    setEditOpen(false);
-    setEditTarget(null);
-    softRefetch();
+    setWorkspaces(prev => [
+      {
+        id,
+        name: ws.name,
+        description: ws.description,
+        imageUrl:
+          'https://images.unsplash.com/photo-1497366216548-37526070297c', // 기본 이미지
+        owner: '나', // 로그인 유저명으로 교체
+        inviteCode,
+        members: 1,
+        status: 'active',
+        createdAt: new Date().toISOString().slice(0, 10),
+      },
+      ...prev,
+    ]);
   };
 
   const handleEdit = (id: string) => {
-    const target = workspaces.find(w => w.id === id);
-    if (target) {
-      setEditTarget(target);
-      setEditOpen(true);
-    }
+    // TODO: 수정 다이얼로그 열기
+    alert(`edit ${id}`);
   };
 
-  // 삭제
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!confirm('정말 삭제하시겠어요?')) return;
-    const snapshot = workspaces;
     setWorkspaces(prev => prev.filter(w => w.id !== id));
-    try {
-      await deleteWorkspace(id);
-      softRefetch();
-    } catch (err: any) {
-      alert(err?.response?.data?.message || err?.message || '삭제 실패');
-      setWorkspaces(snapshot);
-    }
   };
 
-  // 활성/비활성
-  const handleToggleStatus = async (id: string, next: WSStatus) => {
-    const snapshot = workspaces;
+  const handleToggleStatus = (id: string, next: WSStatus) => {
     setWorkspaces(prev =>
       prev.map(w => (w.id === id ? { ...w, status: next } : w))
     );
-    try {
-      if (next === 'active') await activateWorkspace(id);
-      else await deactivateWorkspace(id);
-      softRefetch();
-    } catch {
-      setWorkspaces(snapshot);
-    }
   };
 
   return (
@@ -184,16 +145,18 @@ export default function WorkspacesPage() {
         {/* 헤더 */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="mb-2 text-3xl font-bold">워크스페이스 관리</h1>
+            <h1 className="mb-2 text-3xl font-bold text-gray-900">
+              워크스페이스 관리
+            </h1>
             <p className="text-gray-600">
               워크스페이스를 생성하고 멤버를 초대하여 관리하세요
             </p>
           </div>
-          <AddWorkspaceDialog mode="create" onCreated={handleCreated} />
+          <AddWorkspaceDialog onCreate={handleCreate} />
         </div>
 
         {/* 통계 */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             label="전체 워크스페이스"
             value={totalWorkspaces}
@@ -209,13 +172,13 @@ export default function WorkspacesPage() {
           <StatCard
             label="활성 워크스페이스"
             value={activeWorkspaces}
-            icon={CheckCircle}
+            icon={Crown}
             valueClassName="text-purple-600"
           />
           <StatCard
-            label="비활성 워크스페이스"
-            value={deactiveWorkspaces}
-            icon={Ban}
+            label="대기 중 초대"
+            value={pendingInvites}
+            icon={Mail}
             valueClassName="text-orange-600"
           />
         </div>
@@ -231,39 +194,24 @@ export default function WorkspacesPage() {
           className="mt-2"
         />
 
-        {/* 리스트 */}
-        {loading ? (
-          <div className="py-12 text-center text-gray-500">불러오는 중…</div>
-        ) : error ? (
-          <div className="py-12 text-center text-rose-600">{error}</div>
-        ) : filtered.length === 0 ? (
-          <div className="py-12 text-center text-gray-500">
-            표시할 워크스페이스가 없습니다.
-          </div>
-        ) : (
-          <div className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(300px,1fr))]">
-            {filtered.map(w => (
-              <WorkspaceCard
-                key={w.id}
-                {...w}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onToggleStatus={handleToggleStatus}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* 수정 다이얼로그 */}
-        {editTarget && (
-          <AddWorkspaceDialog
-            mode="edit"
-            open={editOpen}
-            onOpenChange={setEditOpen}
-            initial={editTarget}
-            onUpdated={handleUpdated}
-          />
-        )}
+        {/* 카드 그리드 */}
+        <div className="grid grid-flow-row-dense gap-6 [grid-template-columns:repeat(auto-fill,minmax(300px,1fr))]">
+          {filtered.map(w => (
+            <WorkspaceCard
+              key={w.id}
+              id={w.id}
+              name={w.name}
+              description={w.description}
+              owner={w.owner}
+              inviteCode={w.inviteCode}
+              status={w.status}
+              imageUrl={w.imageUrl}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onToggleStatus={handleToggleStatus}
+            />
+          ))}
+        </div>
       </div>
     </MainLayout>
   );
