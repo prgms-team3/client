@@ -1,5 +1,7 @@
 'use client';
 
+import { useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -11,6 +13,16 @@ import {
 import Image from 'next/image';
 
 export default function LoginPage() {
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  const handleKakaoLogin = () => {
+    window.location.href = `${API_BASE}/auth/kakao`;
+  };
+
+  const handleGoogleLogin = () => {
+    window.location.href = `${API_BASE}/auth/google`;
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white to-blue-50/30">
       <div className="w-full max-w-md">
@@ -55,6 +67,7 @@ export default function LoginPage() {
             <div className="space-y-4 mb-6">
               {/* Google Login */}
               <Button
+                onClick={handleGoogleLogin}
                 variant="outline"
                 className="w-full h-12 border-gray-200 hover:bg-gray-50"
               >
@@ -67,7 +80,10 @@ export default function LoginPage() {
               </Button>
 
               {/* Kakao Login */}
-              <Button className="w-full h-12 bg-yellow-400 hover:bg-yellow-500 text-gray-900 border-0">
+              <Button
+                onClick={handleKakaoLogin}
+                className="w-full h-12 bg-yellow-400 hover:bg-yellow-500 text-gray-900 border-0"
+              >
                 <div className="flex items-center gap-3">
                   <div className="w-5 h-5 text-yellow-400 bg-gray-900 rounded-full flex items-center justify-center">
                     <span className="text-xs font-bold">K</span>
