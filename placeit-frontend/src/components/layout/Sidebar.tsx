@@ -170,7 +170,7 @@ export function Sidebar({
           <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 mb-6 shadow-sm">
             <div
               className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md ${
-                user.role === 'admin'
+                user?.role === 'admin'
                   ? 'bg-gradient-to-br from-red-500 to-red-600'
                   : 'bg-gradient-to-br from-blue-500 to-blue-600'
               }`}
