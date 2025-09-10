@@ -9,6 +9,7 @@ function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setUser = useUserStore(state => state.setUser);
+  const setAccessToken = useUserStore(state => state.setAccessToken);
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -33,15 +34,29 @@ function CallbackContent() {
           throw new Error('사용자 정보를 가져올 수 없습니다.');
         }
 
-        // 사용자 상태 업데이트
-        setUser({
-          ...response.data,
-          accessToken,
-        });
+        // 상태 업데이트 (토큰/유저)
+        setAccessToken(accessToken);
+        setUser(response.data);
 
         // URL 정리 및 홈으로 리다이렉트
-        window.history.replaceState({}, '', '/');
-        router.replace('/invite-check');
+        try {
+          const wsRes = await api.get('/workspaces/my', {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            withCredentials: true,
+          });
+
+          const raw = wsRes.data?.workspaces ?? wsRes.data ?? [];
+          const visible = Array.isArray(raw)
+            ? raw.filter((w: any) => !w?.deleted)
+            : [];
+          const to = visible.length > 0 ? '/dashboard' : '/invite-check';
+
+          window.history.replaceState({}, '', '/');
+          router.replace(to);
+        } catch {
+          window.history.replaceState({}, '', '/');
+          router.replace('/invite-check');
+        }
       } catch (error) {
         console.error('로그인 처리 중 오류 발생:', error);
         localStorage.removeItem('accessToken');
