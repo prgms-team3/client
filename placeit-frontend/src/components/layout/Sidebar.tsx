@@ -13,20 +13,40 @@ import {
   UserCog,
   Shield,
   Building2,
+  type LucideIcon, // ⬅️ 아이콘 타입
 } from 'lucide-react';
 import { useUserStore } from '@/stores/userStore';
 import { usePathname } from 'next/navigation';
 import { fetchMyWorkspaces } from '@/services/workspaces';
 
 interface SidebarProps {
+  /** 선택적으로 현재 활성 메뉴를 강제로 지정할 수 있음 (없으면 URL 기준) */
   activePage?: string;
   userName?: string;
 }
 
-export function Sidebar({
-  activePage = 'dashboard',
-  userName = '김관리자',
-}: SidebarProps) {
+/** /workspaces/my 최소 형태 */
+type MinimalWorkspace = { deleted?: boolean };
+
+/** 네비게이션 아이템 공통 타입 (subItems는 선택 속성) */
+type NavSubItem = {
+  id: string;
+  label: string;
+  subtitle: string;
+  href: string;
+  icon: LucideIcon;
+};
+type NavItem = {
+  id: string;
+  label: string;
+  subtitle: string;
+  icon: LucideIcon;
+  href: string;
+  badge?: string | null;
+  subItems?: NavSubItem[];
+};
+
+export function Sidebar({ activePage, userName = '김관리자' }: SidebarProps) {
   const { user } = useUserStore();
   const currentDate = new Date();
   const currentDay = currentDate.getDate();
@@ -37,30 +57,38 @@ export function Sidebar({
   const pathname = usePathname();
   const normalize = (p: string) => (p.endsWith('/') ? p.slice(0, -1) : p);
 
+  // 배열 또는 { workspaces: [] } 모두 처리
+  const toList = (input: unknown): MinimalWorkspace[] => {
+    if (Array.isArray(input)) return input as MinimalWorkspace[];
+    if (
+      input &&
+      typeof input === 'object' &&
+      Array.isArray((input as { workspaces?: unknown }).workspaces)
+    ) {
+      return (input as { workspaces: MinimalWorkspace[] }).workspaces;
+    }
+    return [];
+  };
+
   // 워크스페이스 개수 가져오기
   useEffect(() => {
     (async () => {
       try {
         const res = await fetchMyWorkspaces();
+        const items = toList(res);
 
-        // 응답이 배열인 경우 vs { workspaces: [...] }인 경우 모두 처리
-        const items = Array.isArray(res)
-          ? res
-          : Array.isArray(res?.workspaces)
-          ? res.workspaces
-          : [];
+        // deleted가 true가 아닌 것만 카운트
+        const visible = items.filter((w): w is MinimalWorkspace => !w?.deleted);
 
-        // 삭제/비활성 필터가 필요하면 여기서 걸러줘
-        const visible = items.filter((w: any) => !w?.deleted); // 필요 없으면 이 줄 삭제
         setWorkspaceCount(visible.length);
-      } catch (e) {
+      } catch (e: unknown) {
         console.error('워크스페이스 불러오기 실패:', e);
-        setWorkspaceCount(0); // 실패 시 0으로
+        setWorkspaceCount(0);
       }
     })();
   }, []);
 
-  const navigationItems = [
+  const navigationItems: NavItem[] = [
     {
       id: 'dashboard',
       label: '대시보드',
@@ -113,19 +141,18 @@ export function Sidebar({
           id: 'user-management',
           label: '사용자 관리',
           subtitle: '개별 사용자 권한 설정',
-          href: '/users', // 목록/개별 사용자 권한 페이지
-          icon: UserCog, // (원하면 Users로 둬도 OK)
+          href: '/users',
+          icon: UserCog,
         },
         {
           id: 'group-management',
           label: '그룹 관리',
           subtitle: '그룹별 권한 관리',
-          href: '/users/groups', // 그룹 관리 페이지
-          icon: Shield, // (원하면 Users로 둬도 OK)
+          href: '/users/groups',
+          icon: Shield,
         },
       ],
     },
-
     {
       id: 'workspace',
       label: '워크스페이스 관리',
@@ -155,7 +182,7 @@ export function Sidebar({
       badgeColor: 'bg-orange-500',
       bgColor: 'bg-orange-50',
     },
-  ];
+  ] as const;
 
   return (
     <aside className="w-64 bg-white text-gray-900 h-full overflow-y-auto relative border-r border-gray-200 min-w-64">
@@ -195,9 +222,12 @@ export function Sidebar({
             <ul className="space-y-1">
               {navigationItems.map(item => {
                 const Icon = item.icon;
-                const isActive =
-                  normalize(pathname) === normalize(item.href) ||
-                  pathname.startsWith(`${normalize(item.href)}/`);
+
+                // activePage가 주어지면 그 값을 우선, 아니면 URL 기준
+                const isActive = activePage
+                  ? item.id === activePage
+                  : normalize(pathname) === normalize(item.href) ||
+                    pathname.startsWith(`${normalize(item.href)}/`);
 
                 return (
                   <li key={item.id}>
@@ -314,7 +344,6 @@ export function Sidebar({
                   <div
                     className={`relative p-4 ${item.bgColor} rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200`}
                   >
-                    {' '}
                     <div className="flex items-start flex-col gap-1">
                       <div className="flex gap-2">
                         <Icon

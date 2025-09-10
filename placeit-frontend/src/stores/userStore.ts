@@ -1,4 +1,3 @@
-// src/stores/userStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
@@ -6,7 +5,11 @@ import {
   joinWorkspaceByCode,
   fetchMyWorkspaces,
 } from '@/services/workspaces';
-import { CreateWorkspace } from '@/types/workspace';
+import {
+  type CreateWorkspace,
+  type Workspace,
+  type JoinWorkspaceResponse,
+} from '@/types/workspace';
 
 export interface User {
   id?: number;
@@ -35,24 +38,22 @@ interface UserStore {
   reset: () => void;
 }
 
-/** undefined 값을 제거해 병합 시 필수 필드가 'string | undefined'로 오염되는 걸 막는다 */
+type MaybeDeletedWorkspace = Workspace & { deleted?: boolean };
+
 function stripUndefined<T extends object>(obj: Partial<T>): Partial<T> {
-  return Object.fromEntries(
-    Object.entries(obj).filter(([, v]) => v !== undefined)
-  ) as Partial<T>;
+  const entries = Object.entries(obj).filter(([, v]) => v !== undefined);
+  return Object.fromEntries(entries) as Partial<T>;
 }
 
-/** user가 null이더라도 필수 필드가 비지 않도록 기본값을 만든다 */
 function baseUser(role: User['role']): User {
   return {
     name: '사용자',
     email: '',
     role,
-    isWorkspaceOwner: role === 'admin' ? true : false,
+    isWorkspaceOwner: role === 'admin',
   };
 }
 
-/** 들어오는 User를 안전하게 정규화(필수 필드 보장) */
 function normalizeUser(u: User): User {
   return {
     ...u,
@@ -62,19 +63,30 @@ function normalizeUser(u: User): User {
   };
 }
 
+function extractWorkspaces(input: unknown): MaybeDeletedWorkspace[] {
+  if (Array.isArray(input)) {
+    return input as MaybeDeletedWorkspace[];
+  }
+  if (input && typeof input === 'object') {
+    const maybe = input as { workspaces?: unknown };
+    if (Array.isArray(maybe.workspaces)) {
+      return maybe.workspaces as MaybeDeletedWorkspace[];
+    }
+  }
+  return [];
+}
+
 export const useUserStore = create<UserStore>()(
   persist(
     (set, get) => ({
       user: null,
       accessToken: null,
 
-      /** 전체 교체. null 허용. User일 때는 필수 필드를 보정 */
       setUser: u =>
         set({
           user: u ? normalizeUser(u) : null,
         }),
 
-      /** 부분 업데이트. undefined는 무시하고 안전하게 병합 */
       updateUser: patch =>
         set(state => {
           const current = state.user ?? baseUser('user');
@@ -88,7 +100,7 @@ export const useUserStore = create<UserStore>()(
       // 초대 코드 없을 시, 워크스페이스 생성
       createWorkspace: async (payload: CreateWorkspace) => {
         // 1) 생성 요청
-        const resp = await apiCreateWorkspace(payload); // resp: Workspace
+        const resp: Workspace = await apiCreateWorkspace(payload);
 
         // 2) 응답에서 id 우선 사용
         let newId: string | undefined =
@@ -97,12 +109,8 @@ export const useUserStore = create<UserStore>()(
         // 3) 못 찾으면 /workspaces/my로 보강
         if (!newId) {
           const list = await fetchMyWorkspaces();
-          const arr = Array.isArray((list as any)?.workspaces)
-            ? (list as any).workspaces
-            : Array.isArray(list)
-            ? (list as any)
-            : [];
-          const visible = arr.filter((w: any) => !w?.deleted);
+          const arr = extractWorkspaces(list);
+          const visible = arr.filter(w => !w.deleted);
           if (visible[0]?.id != null) newId = String(visible[0].id);
         }
 
@@ -123,20 +131,35 @@ export const useUserStore = create<UserStore>()(
       // 초대코드 합류
       joinWorkspace: async (code: string) => {
         // 1) 서버에 조인 요청
-        const resp = await joinWorkspaceByCode(code.trim());
+        const resp: JoinWorkspaceResponse = await joinWorkspaceByCode(
+          code.trim()
+        );
 
         // 2) 조인 후 내 워크스페이스 목록 재조회
         const list = await fetchMyWorkspaces();
-        const raw = (list as any)?.workspaces ?? list ?? [];
-        const visible = Array.isArray(raw)
-          ? raw.filter((w: any) => !w?.deleted)
-          : [];
+        const arr = extractWorkspaces(list);
+        const visible = arr.filter(w => !w.deleted);
 
         // 3) 합류할 워크스페이스 id 결정
         let newId: string | undefined;
-        if (resp?.workspace?.id != null) newId = String(resp.workspace.id);
-        else if (resp?.id != null) newId = String(resp.id);
-        else if (visible[0]?.id != null) newId = String(visible[0].id);
+        if (resp && typeof resp === 'object') {
+          const hasNested =
+            'workspace' in resp &&
+            resp.workspace &&
+            typeof resp.workspace === 'object';
+          const nestedId =
+            hasNested && 'id' in (resp.workspace as Record<string, unknown>)
+              ? (resp.workspace as { id?: number | string }).id
+              : undefined;
+          const flatId =
+            'id' in resp ? (resp as { id?: number | string }).id : undefined;
+
+          if (nestedId != null) newId = String(nestedId);
+          else if (flatId != null) newId = String(flatId);
+        }
+        if (!newId && visible[0]?.id != null) {
+          newId = String(visible[0].id);
+        }
 
         // 4) 상태 갱신
         set(state => {

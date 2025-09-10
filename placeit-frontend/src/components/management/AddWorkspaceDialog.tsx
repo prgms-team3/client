@@ -60,7 +60,20 @@ export default function AddWorkspaceDialog({
     return null;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const getMsg = (err: unknown): string => {
+    if (typeof err === 'object' && err !== null) {
+      const anyErr = err as {
+        message?: unknown;
+        response?: { data?: { message?: unknown } };
+      };
+      if (typeof anyErr?.response?.data?.message === 'string')
+        return anyErr.response.data.message;
+      if (typeof anyErr?.message === 'string') return anyErr.message;
+    }
+    return '요청 실패';
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const v = validate();
     if (v) {
@@ -73,7 +86,8 @@ export default function AddWorkspaceDialog({
         const payload: CreateWorkspace = {
           name: name.trim(),
           description: description.trim() || undefined,
-          // 이미지 파일을 서버가 받는 방식(FormData)으로 바꿔야 할 수도 있음
+          // imageFile, // 이미지 사용 → 미사용 경고 제거
+          // imageUrl: imageUrl ?? undefined,
         };
         const created = await createWorkspace(payload);
         onCreated?.(created);
@@ -81,14 +95,16 @@ export default function AddWorkspaceDialog({
         const payload: UpdateWorkspace = {
           name: name.trim(),
           description: description.trim() || undefined,
+          // 서버가 이미지 수정도 지원한다면 아래 두 줄을 유지
+          // imageFile,
+          // imageUrl: imageUrl ?? undefined,
         };
         const updated = await updateWorkspace(String(initial.id), payload);
         onUpdated?.(updated);
       }
       setOpen(false);
-    } catch (err: any) {
-      const serverMsg = err?.response?.data?.message;
-      setError(serverMsg || err?.message || '요청 실패');
+    } catch (err: unknown) {
+      setError(getMsg(err));
     } finally {
       setSubmitting(false);
     }
@@ -130,7 +146,9 @@ export default function AddWorkspaceDialog({
                 className="w-full rounded-md border px-3 py-2 text-sm"
                 placeholder="예: PlaceIt"
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setName(e.target.value)
+                }
               />
             </div>
 
@@ -141,7 +159,9 @@ export default function AddWorkspaceDialog({
                 className="w-full rounded-md border px-3 py-2 text-sm"
                 rows={3}
                 value={description}
-                onChange={e => setDescription(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setDescription(e.target.value)
+                }
               />
             </div>
 
@@ -179,7 +199,7 @@ export default function AddWorkspaceDialog({
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={e => {
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       setImageFile(file);

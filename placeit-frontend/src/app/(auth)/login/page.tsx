@@ -1,7 +1,5 @@
 'use client';
 
-import { useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -9,7 +7,6 @@ import {
   CardDescription,
   CardTitle,
 } from '@/components/ui/card';
-
 import Image from 'next/image';
 
 export default function LoginPage() {

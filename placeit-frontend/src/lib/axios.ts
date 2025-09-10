@@ -1,61 +1,79 @@
-import axios from 'axios';
+// src/lib/axios.ts
+import axios, {
+  AxiosError,
+  AxiosInstance,
+  InternalAxiosRequestConfig,
+  AxiosHeaders,
+} from 'axios';
 import { useUserStore } from '@/stores/userStore';
 
-export const api = axios.create({
+type RefreshResponse = { accessToken: string };
+
+type RetriableRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
+
+export const api: AxiosInstance = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
   withCredentials: true,
 });
 
-// 요청 인터셉터: accessToken 붙이기
-api.interceptors.request.use(config => {
-  const token = useUserStore.getState().accessToken;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// 토큰 재발급 중복 요청 방지용
-let isRefreshing = false;
-let failedQueue: any[] = [];
-
-const processQueue = (error: any, token: string | null = null) => {
-  failedQueue.forEach(prom => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
+// 요청 인터셉터
+api.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const token = useUserStore.getState().accessToken;
+    if (token) {
+      // headers를 AxiosHeaders로 보장한 뒤 set 사용
+      const headers =
+        (config.headers as AxiosHeaders | undefined) ?? new AxiosHeaders();
+      headers.set('Authorization', `Bearer ${token}`);
+      config.headers = headers;
     }
-  });
+    return config;
+  },
+  (error: AxiosError) => Promise.reject(error)
+);
+
+let isRefreshing = false;
+type Deferred<T> = { resolve: (v: T) => void; reject: (r?: unknown) => void };
+let failedQueue: Array<Deferred<string | null>> = [];
+
+const processQueue = (error: unknown | null, token: string | null = null) => {
+  failedQueue.forEach(({ resolve, reject }) =>
+    error ? reject(error) : resolve(token)
+  );
   failedQueue = [];
 };
 
 // 응답 인터셉터
 api.interceptors.response.use(
   res => res,
-  async err => {
-    const originalRequest = err.config;
+  async (err: AxiosError) => {
+    const originalRequest = err.config as RetriableRequestConfig | undefined;
+    const status = err.response?.status ?? 0;
 
-    // access token 만료
-    if (err.response?.status === 401 && !originalRequest._retry) {
+    if (!originalRequest) return Promise.reject(err);
+
+    if (status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
-        // refresh 중이면 큐에 넣기
-        return new Promise((resolve, reject) => {
+        return new Promise<string | null>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
-        })
-          .then(token => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            return api(originalRequest);
-          })
-          .catch(error => Promise.reject(error));
+        }).then(token => {
+          // 재시도 시에도 AxiosHeaders로 설정
+          const headers =
+            (originalRequest.headers as AxiosHeaders | undefined) ??
+            new AxiosHeaders();
+          headers.set('Authorization', `Bearer ${token ?? ''}`);
+          originalRequest.headers = headers;
+          return api(originalRequest);
+        });
       }
 
       originalRequest._retry = true;
       isRefreshing = true;
 
       try {
-        // refresh 요청
-        const { data } = await axios.post(
+        const { data } = await axios.post<RefreshResponse>(
           `${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/refresh`,
           {},
           { withCredentials: true }
@@ -65,7 +83,13 @@ api.interceptors.response.use(
         useUserStore.getState().setAccessToken(newToken);
 
         processQueue(null, newToken);
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+
+        const headers =
+          (originalRequest.headers as AxiosHeaders | undefined) ??
+          new AxiosHeaders();
+        headers.set('Authorization', `Bearer ${newToken}`);
+        originalRequest.headers = headers;
+
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);

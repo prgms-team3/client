@@ -11,6 +11,20 @@ function CallbackContent() {
   const setUser = useUserStore(state => state.setUser);
   const setAccessToken = useUserStore(state => state.setAccessToken);
 
+  type MinimalWorkspace = { deleted?: boolean };
+
+  const toList = (input: unknown): MinimalWorkspace[] => {
+    if (Array.isArray(input)) return input as MinimalWorkspace[];
+    if (
+      input &&
+      typeof input === 'object' &&
+      Array.isArray((input as { workspaces?: unknown }).workspaces)
+    ) {
+      return (input as { workspaces: MinimalWorkspace[] }).workspaces;
+    }
+    return [];
+  };
+
   useEffect(() => {
     const handleCallback = async () => {
       try {
@@ -45,10 +59,8 @@ function CallbackContent() {
             withCredentials: true,
           });
 
-          const raw = wsRes.data?.workspaces ?? wsRes.data ?? [];
-          const visible = Array.isArray(raw)
-            ? raw.filter((w: any) => !w?.deleted)
-            : [];
+          const arr = toList(wsRes.data);
+          const visible = arr.filter(w => !w.deleted);
           const to = visible.length > 0 ? '/dashboard' : '/invite-check';
 
           window.history.replaceState({}, '', '/');
@@ -57,7 +69,7 @@ function CallbackContent() {
           window.history.replaceState({}, '', '/');
           router.replace('/invite-check');
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('로그인 처리 중 오류 발생:', error);
         localStorage.removeItem('accessToken');
         router.replace('/login?error=login_failed');
@@ -65,7 +77,7 @@ function CallbackContent() {
     };
 
     handleCallback();
-  }, [router, searchParams, setUser]);
+  }, [router, searchParams, setUser, setAccessToken]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">

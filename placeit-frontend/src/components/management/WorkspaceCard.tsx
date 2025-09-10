@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Edit3, Trash2, Copy, UserCircle2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import Image from 'next/image';
 
 export type WorkspaceStatus = 'active' | 'inactive';
 
@@ -41,6 +42,8 @@ export default function WorkspaceCard({
   const [copied, setCopied] = React.useState(false);
   const isActive = status === 'active';
 
+  const DEFAULT_IMG = '/images/meeting-room-2.jpg';
+
   const handleCopy = async () => {
     try {
       if (onCopyInvite) onCopyInvite(inviteCode);
@@ -57,13 +60,13 @@ export default function WorkspaceCard({
 
   return (
     <div className="overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md">
-      <div className="relative">
-        <img
-          src={imageUrl}
+      <div className="relative aspect-[16/9]">
+        <Image
+          src={imageUrl ?? DEFAULT_IMG}
           alt={`${name} cover`}
-          className="h-40 w-full object-cover"
-          loading="lazy"
-          decoding="async"
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+          className="object-cover"
         />
         <span
           className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow ${
