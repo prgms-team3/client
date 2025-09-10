@@ -3,6 +3,7 @@ import type {
   Workspace,
   CreateWorkspace,
   UpdateWorkspace,
+  JoinWorkspaceResponse,
 } from '@/types/workspace';
 
 // 워크스페이스 생성
@@ -19,6 +20,7 @@ export async function fetchMyWorkspaces() {
   return res.data;
 }
 
+// 워크스페이스 수정
 export async function updateWorkspace(
   id: string,
   body: UpdateWorkspace
@@ -40,4 +42,12 @@ export async function activateWorkspace(id: string | number): Promise<void> {
 // 워크스페이스 비활성화
 export async function deactivateWorkspace(id: string | number): Promise<void> {
   await api.patch(`/workspaces/${id}/deactivate`);
+}
+
+// 초대코드로 워크스페이스 참여
+export async function joinWorkspaceByCode(
+  code: string
+): Promise<JoinWorkspaceResponse> {
+  const { data } = await api.post('/workspaces/join', { code });
+  return data;
 }
