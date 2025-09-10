@@ -1,105 +1,79 @@
 'use client';
 
-import { useEffect, Suspense } from 'react';
+import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import axios from 'axios';
 import { api } from '@/lib/axios';
 import { useUserStore } from '@/stores/userStore';
 
-function CallbackContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const setUser = useUserStore(state => state.setUser);
-  const setAccessToken = useUserStore(state => state.setAccessToken);
+async function tryRefreshWithFallback() {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL!;
+  const candidates = ['/auth/refresh', '/api/auth/refresh'];
+  let lastErr: any;
 
-  type MinimalWorkspace = { deleted?: boolean };
-
-  const toList = (input: unknown): MinimalWorkspace[] => {
-    if (Array.isArray(input)) return input as MinimalWorkspace[];
-    if (
-      input &&
-      typeof input === 'object' &&
-      Array.isArray((input as { workspaces?: unknown }).workspaces)
-    ) {
-      return (input as { workspaces: MinimalWorkspace[] }).workspaces;
+  for (const path of candidates) {
+    const url = `${base}${path}`;
+    try {
+      console.log('[callback] POST', url);
+      const { data } = await axios.post(url, {}, { withCredentials: true });
+      return { data, url };
+    } catch (e) {
+      const err = e as any;
+      const status = err?.response?.status;
+      const body = err?.response?.data;
+      console.error('[callback] refresh failed:', { url, status, body });
+      lastErr = e;
     }
-    return [];
-  };
-
-  useEffect(() => {
-    const handleCallback = async () => {
-      try {
-        const accessToken = searchParams.get('accessToken');
-
-        if (!accessToken) {
-          router.replace('/login?error=missing_token');
-          return;
-        }
-
-        // 토큰 저장
-        localStorage.setItem('accessToken', accessToken);
-
-        // 사용자 정보 조회
-        const response = await api.get('/users/me', {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          withCredentials: true,
-        });
-
-        if (!response.data) {
-          throw new Error('사용자 정보를 가져올 수 없습니다.');
-        }
-
-        // 상태 업데이트 (토큰/유저)
-        setAccessToken(accessToken);
-        setUser(response.data);
-
-        // URL 정리 및 홈으로 리다이렉트
-        try {
-          const wsRes = await api.get('/workspaces/my', {
-            headers: { Authorization: `Bearer ${accessToken}` },
-            withCredentials: true,
-          });
-
-          const arr = toList(wsRes.data);
-          const visible = arr.filter(w => !w.deleted);
-          const to = visible.length > 0 ? '/dashboard' : '/invite-check';
-
-          window.history.replaceState({}, '', '/');
-          router.replace(to);
-        } catch {
-          window.history.replaceState({}, '', '/');
-          router.replace('/invite-check');
-        }
-      } catch (error: unknown) {
-        console.error('로그인 처리 중 오류 발생:', error);
-        localStorage.removeItem('accessToken');
-        router.replace('/login?error=login_failed');
-      }
-    };
-
-    handleCallback();
-  }, [router, searchParams, setUser, setAccessToken]);
-
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">로그인 처리 중입니다...</p>
-        <p className="text-sm text-gray-400 mt-2">잠시만 기다려주세요.</p>
-      </div>
-    </div>
-  );
+  }
+  throw lastErr;
 }
 
 export default function CallbackPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
+  const router = useRouter();
+  const params = useSearchParams();
+  const setAuth = useUserStore.getState().setAuth;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // 1) URL에서 access_token 먼저 찾기
+        let token =
+          params.get('access_token') || params.get('token') || undefined;
+        if (
+          !token &&
+          typeof window !== 'undefined' &&
+          window.location.hash.startsWith('#')
+        ) {
+          const hash = new URLSearchParams(window.location.hash.slice(1));
+          token = hash.get('access_token') || hash.get('token') || undefined;
+        }
+
+        // 2) 없으면 refresh로 재발급(두 경로 자동 시도)
+        if (!token) {
+          const { data } = await tryRefreshWithFallback();
+          token = data?.access_token || data?.accessToken || data?.token;
+        }
+        if (!token) throw new Error('No access_token');
+
+        // 3) 토큰 저장
+        setAuth({ accessToken: token });
+
+        router.replace('/');
+      } catch (e: any) {
+        // 에러를 보기 좋게 출력
+        const status = e?.response?.status;
+        const url = e?.config?.url;
+        const body = e?.response?.data;
+        console.error('로그인 처리 중 오류:', {
+          status,
+          url,
+          body,
+          message: String(e),
+        });
+        router.replace('/login?error=callback_failed');
       }
-    >
-      <CallbackContent />
-    </Suspense>
-  );
+    })();
+  }, [params, router, setAuth]);
+
+  return <p className="p-8">로그인 처리 중…</p>;
 }
