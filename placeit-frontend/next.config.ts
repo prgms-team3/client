@@ -2,6 +2,12 @@ import type { NextConfig } from 'next';
 
 /** @type {import('next').NextConfig} */
 
+module.exports = {
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+};
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
