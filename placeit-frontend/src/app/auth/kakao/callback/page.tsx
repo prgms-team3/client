@@ -61,17 +61,23 @@ function KakaoCallbackContent() {
     };
 
     const redirectToBackendForTokenExchange = (code: string) => {
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
+      const clientBase = process.env.NEXT_PUBLIC_CLIENT_BASE_URL?.replace(
         /\/$/,
         ''
       );
-      if (!apiBaseUrl) {
-        throw new Error('API Base URL이 설정되지 않았습니다.');
-      }
-      const callbackUrl = `${apiBaseUrl}/auth/kakao/callback?code=${encodeURIComponent(
-        code
-      )}`;
-      window.location.href = callbackUrl;
+      if (!apiBase || !clientBase)
+        throw new Error('API/CLIENT Base URL 미설정');
+
+      const url = new URL('/auth/kakao/callback', apiBase);
+      url.searchParams.set('code', code);
+      // 최종 귀착지는 프론트의 /callback
+      url.searchParams.set(
+        'redirectUri',
+        new URL('/callback', clientBase).toString()
+      );
+
+      window.location.href = url.toString();
     };
 
     const processLogin = async (accessToken: string) => {
