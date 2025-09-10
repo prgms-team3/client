@@ -10,15 +10,32 @@ import {
 import Image from 'next/image';
 
 export default function LoginPage() {
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
+  const CLIENT_BASE = process.env.NEXT_PUBLIC_CLIENT_BASE_URL?.replace(
+    /\/$/,
+    ''
+  );
 
-  const handleKakaoLogin = () => {
-    window.location.href = `${API_BASE}/auth/kakao`;
+  // 공통 이동 유틸
+  const goAuth = (provider: 'google' | 'kakao') => {
+    if (!API_BASE) {
+      // 배포 빌드에서 env 누락 시 'undefined/...'로 가지 않도록 즉시 중단
+      console.error('Missing NEXT_PUBLIC_API_BASE_URL at build time');
+      window.location.href = '/login?error=config';
+      return;
+    }
+    const url = new URL(`/auth/${provider}`, API_BASE);
+    // 백엔드가 최종 리다이렉트 목적지를 요구한다면 Kakao처럼 붙여줍니다.
+    const redirect = new URL(
+      '/callback',
+      CLIENT_BASE || window.location.origin
+    );
+    url.searchParams.set('redirectUri', redirect.toString());
+    window.location.href = url.toString();
   };
 
-  const handleGoogleLogin = () => {
-    window.location.href = `${API_BASE}/auth/google`;
-  };
+  const handleGoogleLogin = () => goAuth('google');
+  const handleKakaoLogin = () => goAuth('kakao');
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white to-blue-50/30">
