@@ -40,12 +40,8 @@ function GoogleCallbackContent() {
 
     const redirectToBackendForTokenExchange = (code: string) => {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
-      const clientBase = process.env.NEXT_PUBLIC_CLIENT_BASE_URL?.replace(
-        /\/$/,
-        ''
-      );
-      if (!apiBase || !clientBase) {
-        console.error('API/CLIENT Base URL이 설정되지 않았습니다.');
+      if (!apiBase) {
+        console.error('API Base URL이 설정되지 않았습니다.');
         router.replace('/login?error=config_error');
         return;
       }
@@ -53,7 +49,7 @@ function GoogleCallbackContent() {
       url.searchParams.set('code', code);
       url.searchParams.set(
         'redirectUri',
-        new URL('/callback', clientBase).toString()
+        new URL('/callback', window.location.origin).toString()
       );
       window.location.href = url.toString();
     };

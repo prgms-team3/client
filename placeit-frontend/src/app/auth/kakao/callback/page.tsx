@@ -62,19 +62,14 @@ function KakaoCallbackContent() {
 
     const redirectToBackendForTokenExchange = (code: string) => {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
-      const clientBase = process.env.NEXT_PUBLIC_CLIENT_BASE_URL?.replace(
-        /\/$/,
-        ''
-      );
-      if (!apiBase || !clientBase)
-        throw new Error('API/CLIENT Base URL 미설정');
+      if (!apiBase) throw new Error('API Base URL 미설정');
 
       const url = new URL('/auth/kakao/callback', apiBase);
       url.searchParams.set('code', code);
       // 최종 귀착지는 프론트의 /callback
       url.searchParams.set(
         'redirectUri',
-        new URL('/callback', clientBase).toString()
+        new URL('/callback', window.location.origin).toString()
       );
 
       window.location.href = url.toString();
