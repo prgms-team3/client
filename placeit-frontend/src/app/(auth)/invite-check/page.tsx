@@ -3,31 +3,52 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Users, Building, ArrowRight, ArrowLeft } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Users, Building, ArrowLeft, ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useUserStore } from '@/stores/userStore';
+import { CreateWorkspace } from '@/types/workspace';
 
-export default function InviteCheckPage() {
-  const [selectedOption, setSelectedOption] = useState<'has-code' | 'no-code'>(
-    'has-code'
-  );
+type Mode = 'has-code' | 'no-code';
+
+export default function InviteFlowPage() {
+  const [mode, setMode] = useState<Mode>('has-code');
+
+  // has-code
+  const [inviteCode, setInviteCode] = useState('');
+  const isValidInvite = inviteCode.trim().length >= 6;
+
+  // no-code
+  const [workspaceName, setWorkspaceName] = useState('');
+
   const router = useRouter();
+  const { joinWorkspace, createWorkspace } = useUserStore();
 
-  const handleContinue = () => {
-    if (selectedOption === 'has-code') {
-      router.push('/invite-code');
+  const handleContinue = async () => {
+    if (mode === 'has-code') {
+      if (!isValidInvite) return;
+      try {
+        await joinWorkspace(inviteCode.trim());
+        router.replace('/dashboard');
+      } catch (e) {}
     } else {
-      router.push('/create-workspace');
+      if (!workspaceName.trim()) return;
+      const payload: CreateWorkspace = { name: workspaceName.trim() };
+      try {
+        await createWorkspace(payload);
+        router.replace('/dashboard');
+      } catch (e) {}
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-2xl">
-        {/* Header Section */}
+        {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-3 mb-4">
             <div className="brand-logo">
@@ -49,10 +70,10 @@ export default function InviteCheckPage() {
           </div>
         </div>
 
-        {/* Main Content Card */}
+        {/* Main Card */}
         <Card className="w-full shadow-xl border-0">
           <CardContent className="p-8">
-            {/* Welcome Message */}
+            {/* Title */}
             <div className="text-center mb-8">
               <div className="flex items-center justify-center gap-2 mb-4">
                 <h1 className="text-3xl font-bold text-gray-900">
@@ -61,19 +82,17 @@ export default function InviteCheckPage() {
                 <span className="text-2xl">🎉</span>
               </div>
               <p className="text-lg text-gray-600">
-                초대코드를 받으셨나요? 워크스페이스 참여 방법을 선택해주세요
+                초대코드를 받으셨나요? 참여 방법을 선택해주세요
               </p>
             </div>
 
             {/* Options */}
             <RadioGroup
-              value={selectedOption}
-              onValueChange={(value: string) =>
-                setSelectedOption(value as 'has-code' | 'no-code')
-              }
-              className="space-y-4 mb-8"
+              value={mode}
+              onValueChange={(v: string) => setMode(v as Mode)}
+              className="space-y-4 mb-6"
             >
-              {/* Option 1: Has Invitation Code */}
+              {/* has-code */}
               <div className="flex items-start space-x-3">
                 <RadioGroupItem
                   value="has-code"
@@ -83,7 +102,7 @@ export default function InviteCheckPage() {
                 <Label
                   htmlFor="has-code"
                   className={`flex-1 p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                    selectedOption === 'has-code'
+                    mode === 'has-code'
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 bg-white hover:border-gray-300'
                   }`}
@@ -104,14 +123,14 @@ export default function InviteCheckPage() {
                 </Label>
               </div>
 
-              {/* Option 2: No Invitation Code */}
+              {/* no-code */}
               <div className="flex items-start space-x-3">
                 <RadioGroupItem value="no-code" id="no-code" className="mt-1" />
                 <Label
                   htmlFor="no-code"
                   className={`flex-1 p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                    selectedOption === 'no-code'
-                      ? 'border-blue-500 bg-blue-50'
+                    mode === 'no-code'
+                      ? 'border-purple-500 bg-purple-50'
                       : 'border-gray-200 bg-white hover:border-gray-300'
                   }`}
                 >
@@ -132,48 +151,88 @@ export default function InviteCheckPage() {
               </div>
             </RadioGroup>
 
-            {/* Continue Button */}
+            {/* Dynamic Section */}
+            {mode === 'has-code' ? (
+              <div className="p-4 bg-white rounded-lg border border-gray-200 mb-8">
+                <Label
+                  htmlFor="invite-code"
+                  className="text-sm font-medium text-gray-700 mb-2 block"
+                >
+                  초대코드를 입력해주세요
+                </Label>
+                <Input
+                  id="invite-code"
+                  type="text"
+                  placeholder="예: STARTUP2025"
+                  value={inviteCode}
+                  onChange={e => setInviteCode(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+            ) : (
+              <div className="p-4 bg-white rounded-lg border border-gray-200 mb-8">
+                <div className="space-y-4">
+                  <div>
+                    <Label
+                      htmlFor="workspace-name"
+                      className="text-sm font-medium text-gray-700 mb-2 block"
+                    >
+                      워크스페이스명
+                    </Label>
+                    <Input
+                      id="workspace-name"
+                      type="text"
+                      value={workspaceName}
+                      onChange={e => setWorkspaceName(e.target.value)}
+                      placeholder="예: PlacIt"
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CTA */}
             <div className="text-center mb-8">
               <Button
                 onClick={handleContinue}
-                className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                disabled={
+                  mode === 'has-code' ? !isValidInvite : !workspaceName.trim()
+                }
+                className={`px-8 py-3 rounded-lg ${
+                  mode === 'has-code'
+                    ? isValidInvite
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : workspaceName.trim()
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
               >
-                <span>계속하기</span>
+                <span>
+                  {mode === 'has-code' ? '계속하기' : '워크스페이스 만들기'}
+                </span>
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
 
-            {/* Information Section */}
+            {/* Info */}
             <div className="bg-gray-50 rounded-lg p-6 mb-6">
               <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-2">
                     초대코드란?
                   </h3>
-                  <p className="text-gray-600 mb-3">
+                  <p className="text-gray-600">
                     워크스페이스에 참여하기 위한 고유한 코드입니다. 팀 관리자나
                     동료로부터 받을 수 있습니다.
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    유효한 테스트 코드:{' '}
-                    <span className="font-mono bg-white px-2 py-1 rounded">
-                      STARTUP2024
-                    </span>
-                    ,{' '}
-                    <span className="font-mono bg-white px-2 py-1 rounded">
-                      DEV-TEAM-2024
-                    </span>
-                    ,{' '}
-                    <span className="font-mono bg-white px-2 py-1 rounded">
-                      CREATIVE2024
-                    </span>
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Return to Login */}
+            {/* Back link */}
             <div className="text-center">
               <Link
                 href="/login"
