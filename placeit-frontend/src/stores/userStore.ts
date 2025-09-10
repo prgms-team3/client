@@ -1,3 +1,4 @@
+// src/stores/userStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
@@ -9,8 +10,8 @@ import { CreateWorkspace } from '@/types/workspace';
 
 export interface User {
   id?: number;
-  name: string;
-  email: string;
+  name: string; // 필수
+  email: string; // 필수
   role: 'admin' | 'user';
   department?: string;
   position?: string;
@@ -27,10 +28,38 @@ interface UserStore {
 
   // actions
   setUser: (u: User | null) => void;
+  updateUser: (patch: Partial<User>) => void;
   setAccessToken: (t: string | null) => void;
   createWorkspace: (payload: CreateWorkspace) => Promise<void>;
   joinWorkspace: (code: string) => Promise<void>;
   reset: () => void;
+}
+
+/** undefined 값을 제거해 병합 시 필수 필드가 'string | undefined'로 오염되는 걸 막는다 */
+function stripUndefined<T extends object>(obj: Partial<T>): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined)
+  ) as Partial<T>;
+}
+
+/** user가 null이더라도 필수 필드가 비지 않도록 기본값을 만든다 */
+function baseUser(role: User['role']): User {
+  return {
+    name: '사용자',
+    email: '',
+    role,
+    isWorkspaceOwner: role === 'admin' ? true : false,
+  };
+}
+
+/** 들어오는 User를 안전하게 정규화(필수 필드 보장) */
+function normalizeUser(u: User): User {
+  return {
+    ...u,
+    name: u.name ?? '',
+    email: u.email ?? '',
+    role: u.role ?? 'user',
+  };
 }
 
 export const useUserStore = create<UserStore>()(
@@ -39,7 +68,21 @@ export const useUserStore = create<UserStore>()(
       user: null,
       accessToken: null,
 
-      setUser: u => set({ user: u }),
+      /** 전체 교체. null 허용. User일 때는 필수 필드를 보정 */
+      setUser: u =>
+        set({
+          user: u ? normalizeUser(u) : null,
+        }),
+
+      /** 부분 업데이트. undefined는 무시하고 안전하게 병합 */
+      updateUser: patch =>
+        set(state => {
+          const current = state.user ?? baseUser('user');
+          const safePatch = stripUndefined<User>(patch);
+          const merged = { ...current, ...safePatch };
+          return { user: normalizeUser(merged) };
+        }),
+
       setAccessToken: t => set({ accessToken: t }),
 
       // 초대 코드 없을 시, 워크스페이스 생성
@@ -65,18 +108,14 @@ export const useUserStore = create<UserStore>()(
 
         // 4) 상태 갱신(소유자)
         set(state => {
-          const base: User = state.user ?? {
-            name: '사용자',
-            email: '',
-            role: 'admin',
-          };
+          const base = state.user ?? baseUser('admin');
           return {
-            user: {
+            user: normalizeUser({
               ...base,
               role: 'admin',
               isWorkspaceOwner: true,
               workspaceId: newId,
-            },
+            }),
           };
         });
       },
@@ -93,8 +132,7 @@ export const useUserStore = create<UserStore>()(
           ? raw.filter((w: any) => !w?.deleted)
           : [];
 
-        // 3) 가장 최근(또는 첫 번째) 워크스페이스 id 추출
-        //    서버가 조인 응답에 workspace.id를 주면 우선 사용
+        // 3) 합류할 워크스페이스 id 결정
         let newId: string | undefined;
         if (resp?.workspace?.id != null) newId = String(resp.workspace.id);
         else if (resp?.id != null) newId = String(resp.id);
@@ -102,18 +140,14 @@ export const useUserStore = create<UserStore>()(
 
         // 4) 상태 갱신
         set(state => {
-          const base: User = state.user ?? {
-            name: '사용자',
-            email: '',
-            role: 'user',
-          };
+          const base = state.user ?? baseUser('user');
           return {
-            user: {
+            user: normalizeUser({
               ...base,
               role: 'user',
               isWorkspaceOwner: false,
-              workspaceId: newId, // 못 찾았어도 undefined면 온보딩 가드가 처리
-            },
+              workspaceId: newId, // undefined면 온보딩 가드가 처리
+            }),
           };
         });
       },
