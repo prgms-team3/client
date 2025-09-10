@@ -5,12 +5,16 @@ import {
   joinWorkspaceByCode,
   fetchMyWorkspaces,
 } from '@/services/workspaces';
-import { CreateWorkspace } from '@/types/workspace';
+import {
+  type CreateWorkspace,
+  type Workspace,
+  type JoinWorkspaceResponse,
+} from '@/types/workspace';
 
 export interface User {
   id?: number;
-  name: string;
-  email: string;
+  name: string; // 필수
+  email: string; // 필수
   role: 'admin' | 'user';
   department?: string;
   position?: string;
@@ -27,10 +31,49 @@ interface UserStore {
 
   // actions
   setUser: (u: User | null) => void;
+  updateUser: (patch: Partial<User>) => void;
   setAccessToken: (t: string | null) => void;
   createWorkspace: (payload: CreateWorkspace) => Promise<void>;
   joinWorkspace: (code: string) => Promise<void>;
   reset: () => void;
+}
+
+type MaybeDeletedWorkspace = Workspace & { deleted?: boolean };
+
+function stripUndefined<T extends object>(obj: Partial<T>): Partial<T> {
+  const entries = Object.entries(obj).filter(([, v]) => v !== undefined);
+  return Object.fromEntries(entries) as Partial<T>;
+}
+
+function baseUser(role: User['role']): User {
+  return {
+    name: '사용자',
+    email: '',
+    role,
+    isWorkspaceOwner: role === 'admin',
+  };
+}
+
+function normalizeUser(u: User): User {
+  return {
+    ...u,
+    name: u.name ?? '',
+    email: u.email ?? '',
+    role: u.role ?? 'user',
+  };
+}
+
+function extractWorkspaces(input: unknown): MaybeDeletedWorkspace[] {
+  if (Array.isArray(input)) {
+    return input as MaybeDeletedWorkspace[];
+  }
+  if (input && typeof input === 'object') {
+    const maybe = input as { workspaces?: unknown };
+    if (Array.isArray(maybe.workspaces)) {
+      return maybe.workspaces as MaybeDeletedWorkspace[];
+    }
+  }
+  return [];
 }
 
 export const useUserStore = create<UserStore>()(
@@ -39,13 +82,25 @@ export const useUserStore = create<UserStore>()(
       user: null,
       accessToken: null,
 
-      setUser: u => set({ user: u }),
+      setUser: u =>
+        set({
+          user: u ? normalizeUser(u) : null,
+        }),
+
+      updateUser: patch =>
+        set(state => {
+          const current = state.user ?? baseUser('user');
+          const safePatch = stripUndefined<User>(patch);
+          const merged = { ...current, ...safePatch };
+          return { user: normalizeUser(merged) };
+        }),
+
       setAccessToken: t => set({ accessToken: t }),
 
       // 초대 코드 없을 시, 워크스페이스 생성
       createWorkspace: async (payload: CreateWorkspace) => {
         // 1) 생성 요청
-        const resp = await apiCreateWorkspace(payload); // resp: Workspace
+        const resp: Workspace = await apiCreateWorkspace(payload);
 
         // 2) 응답에서 id 우선 사용
         let newId: string | undefined =
@@ -54,29 +109,21 @@ export const useUserStore = create<UserStore>()(
         // 3) 못 찾으면 /workspaces/my로 보강
         if (!newId) {
           const list = await fetchMyWorkspaces();
-          const arr = Array.isArray((list as any)?.workspaces)
-            ? (list as any).workspaces
-            : Array.isArray(list)
-            ? (list as any)
-            : [];
-          const visible = arr.filter((w: any) => !w?.deleted);
+          const arr = extractWorkspaces(list);
+          const visible = arr.filter(w => !w.deleted);
           if (visible[0]?.id != null) newId = String(visible[0].id);
         }
 
         // 4) 상태 갱신(소유자)
         set(state => {
-          const base: User = state.user ?? {
-            name: '사용자',
-            email: '',
-            role: 'admin',
-          };
+          const base = state.user ?? baseUser('admin');
           return {
-            user: {
+            user: normalizeUser({
               ...base,
               role: 'admin',
               isWorkspaceOwner: true,
               workspaceId: newId,
-            },
+            }),
           };
         });
       },
@@ -84,36 +131,46 @@ export const useUserStore = create<UserStore>()(
       // 초대코드 합류
       joinWorkspace: async (code: string) => {
         // 1) 서버에 조인 요청
-        const resp = await joinWorkspaceByCode(code.trim());
+        const resp: JoinWorkspaceResponse = await joinWorkspaceByCode(
+          code.trim()
+        );
 
         // 2) 조인 후 내 워크스페이스 목록 재조회
         const list = await fetchMyWorkspaces();
-        const raw = (list as any)?.workspaces ?? list ?? [];
-        const visible = Array.isArray(raw)
-          ? raw.filter((w: any) => !w?.deleted)
-          : [];
+        const arr = extractWorkspaces(list);
+        const visible = arr.filter(w => !w.deleted);
 
-        // 3) 가장 최근(또는 첫 번째) 워크스페이스 id 추출
-        //    서버가 조인 응답에 workspace.id를 주면 우선 사용
+        // 3) 합류할 워크스페이스 id 결정
         let newId: string | undefined;
-        if (resp?.workspace?.id != null) newId = String(resp.workspace.id);
-        else if (resp?.id != null) newId = String(resp.id);
-        else if (visible[0]?.id != null) newId = String(visible[0].id);
+        if (resp && typeof resp === 'object') {
+          const hasNested =
+            'workspace' in resp &&
+            resp.workspace &&
+            typeof resp.workspace === 'object';
+          const nestedId =
+            hasNested && 'id' in (resp.workspace as Record<string, unknown>)
+              ? (resp.workspace as { id?: number | string }).id
+              : undefined;
+          const flatId =
+            'id' in resp ? (resp as { id?: number | string }).id : undefined;
+
+          if (nestedId != null) newId = String(nestedId);
+          else if (flatId != null) newId = String(flatId);
+        }
+        if (!newId && visible[0]?.id != null) {
+          newId = String(visible[0].id);
+        }
 
         // 4) 상태 갱신
         set(state => {
-          const base: User = state.user ?? {
-            name: '사용자',
-            email: '',
-            role: 'user',
-          };
+          const base = state.user ?? baseUser('user');
           return {
-            user: {
+            user: normalizeUser({
               ...base,
               role: 'user',
               isWorkspaceOwner: false,
-              workspaceId: newId, // 못 찾았어도 undefined면 온보딩 가드가 처리
-            },
+              workspaceId: newId, // undefined면 온보딩 가드가 처리
+            }),
           };
         });
       },

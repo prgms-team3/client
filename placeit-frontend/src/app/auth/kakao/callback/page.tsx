@@ -11,6 +11,33 @@ function KakaoCallbackContent() {
   const setUser = useUserStore(state => state.setUser);
   const setAccessToken = useUserStore(state => state.setAccessToken);
 
+  // 작은 유틸
+  type MaybeDeleted = { deleted?: boolean } & { id?: number | string };
+  const toList = (input: unknown): MaybeDeleted[] => {
+    if (Array.isArray(input)) return input as MaybeDeleted[];
+    if (
+      input &&
+      typeof input === 'object' &&
+      Array.isArray((input as { workspaces?: unknown }).workspaces)
+    ) {
+      return (input as { workspaces: MaybeDeleted[] }).workspaces;
+    }
+    return [];
+  };
+
+  const getMsg = (err: unknown): string => {
+    if (typeof err === 'object' && err !== null) {
+      const anyErr = err as {
+        message?: unknown;
+        response?: { data?: { message?: unknown } };
+      };
+      if (typeof anyErr?.response?.data?.message === 'string')
+        return anyErr.response.data.message;
+      if (typeof anyErr?.message === 'string') return anyErr.message;
+    }
+    return '로그인 처리 중 오류가 발생했습니다.';
+  };
+
   useEffect(() => {
     const handleCallback = async () => {
       try {
@@ -27,7 +54,7 @@ function KakaoCallbackContent() {
           // 필수 파라미터가 없는 경우
           router.replace('/login?error=invalid_callback');
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('카카오 로그인 처리 중 오류 발생:', error);
         router.replace('/login?error=callback_failed');
       }
@@ -41,7 +68,6 @@ function KakaoCallbackContent() {
       if (!apiBaseUrl) {
         throw new Error('API Base URL이 설정되지 않았습니다.');
       }
-
       const callbackUrl = `${apiBaseUrl}/auth/kakao/callback?code=${encodeURIComponent(
         code
       )}`;
@@ -73,15 +99,14 @@ function KakaoCallbackContent() {
           withCredentials: true,
         });
 
-        const raw = wsRes.data?.workspaces ?? wsRes.data ?? [];
-        const visible = Array.isArray(raw)
-          ? raw.filter((w: any) => !w?.deleted)
-          : [];
+        const arr = toList(wsRes.data);
+        const visible = arr.filter(w => !w.deleted);
         const to = visible.length > 0 ? '/dashboard' : '/invite-check';
 
         window.history.replaceState({}, '', '/');
         router.replace(to);
-      } catch {
+      } catch (e: unknown) {
+        console.warn('워크스페이스 조회 실패:', getMsg(e));
         // 실패 시 온보딩으로
         window.history.replaceState({}, '', '/');
         router.replace('/invite-check');
@@ -89,7 +114,7 @@ function KakaoCallbackContent() {
     };
 
     handleCallback();
-  }, [router, searchParams, setUser]);
+  }, [router, searchParams, setUser, setAccessToken]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">

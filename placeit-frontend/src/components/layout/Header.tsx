@@ -40,8 +40,8 @@ export function Header() {
 
         <div className="flex items-center gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <span className="text-gray-700">게스트</span>
-            <span className="text-gray-400">|</span>
+            {/* <span className="text-gray-700">게스트</span>
+            <span className="text-gray-400">|</span> */}
             <span
               className={`${
                 user?.role === 'admin' ? 'text-red-600' : 'text-blue-600'

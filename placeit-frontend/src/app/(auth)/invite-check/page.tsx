@@ -34,14 +34,18 @@ export default function InviteFlowPage() {
       try {
         await joinWorkspace(inviteCode.trim());
         router.replace('/dashboard');
-      } catch (e) {}
+      } catch {
+        // 실패 시 조용히 무시 (필요하면 토스트 추가)
+      }
     } else {
       if (!workspaceName.trim()) return;
       const payload: CreateWorkspace = { name: workspaceName.trim() };
       try {
         await createWorkspace(payload);
         router.replace('/dashboard');
-      } catch (e) {}
+      } catch {
+        // 실패 시 조용히 무시 (필요하면 토스트 추가)
+      }
     }
   };
 
@@ -89,7 +93,7 @@ export default function InviteFlowPage() {
             {/* Options */}
             <RadioGroup
               value={mode}
-              onValueChange={(v: string) => setMode(v as Mode)}
+              onValueChange={(v: Mode) => setMode(v)}
               className="space-y-4 mb-6"
             >
               {/* has-code */}

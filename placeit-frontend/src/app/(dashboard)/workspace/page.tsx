@@ -42,6 +42,43 @@ const FILTERS: FilterItem<WSFilter>[] = [
 const FALLBACK_IMG =
   'https://images.unsplash.com/photo-1497366216548-37526070297c';
 
+/** 유틸 2개 */
+const toList = (input: unknown): ApiWorkspace[] =>
+  Array.isArray(input)
+    ? (input as ApiWorkspace[])
+    : typeof input === 'object' &&
+      input !== null &&
+      Array.isArray((input as { workspaces?: unknown }).workspaces)
+    ? (input as { workspaces: ApiWorkspace[] }).workspaces
+    : [];
+
+const getMsg = (err: unknown): string =>
+  typeof err === 'object' &&
+  err !== null &&
+  'response' in err &&
+  typeof (err as { response?: unknown }).response === 'object' &&
+  (err as { response: { data?: unknown } }).response &&
+  'data' in (err as { response: { data?: unknown } }).response &&
+  typeof (err as { response: { data?: { message?: unknown } } }).response.data
+    ?.message === 'string'
+    ? String(
+        (err as { response: { data: { message: string } } }).response.data
+          .message
+      )
+    : err instanceof Error
+    ? err.message
+    : '요청 처리 중 오류가 발생했습니다';
+
+/** 백엔드가 추가로 내려주는 확장 필드 정의(타입 안전하게 접근하기 위함) */
+type ApiWorkspaceExtra = ApiWorkspace & {
+  userRole?: string;
+  workspaceUsers?: Array<{ userId?: number | string; role?: string }>;
+  activeInvitationCode?: string;
+  superAdminName?: string;
+  userCount?: number;
+  deleted?: boolean;
+};
+
 export default function WorkspacesPage() {
   const { user } = useUserStore();
   const myId = user?.id;
@@ -57,23 +94,21 @@ export default function WorkspacesPage() {
   const [editTarget, setEditTarget] = React.useState<WorkspaceUI | null>(null);
 
   const mapToUI = React.useCallback(
-    (api: ApiWorkspace, prev?: WorkspaceUI): WorkspaceUI => {
-      // 1) 서버가 내려준 사용자 역할 우선
-      const topRole = String((api as any).userRole ?? '').toUpperCase();
-      let isMember = topRole ? topRole === 'MEMBER' : false;
+    (raw: ApiWorkspace, prev?: WorkspaceUI): WorkspaceUI => {
+      const api = raw as ApiWorkspaceExtra;
+
+      // 1) 서버가 내려준 userRole 우선
+      const topRole = (api.userRole ?? '').toUpperCase();
+      let isMember = topRole === 'MEMBER';
 
       // 2) 없으면 workspaceUsers에서 내 userId로 확인
-      if (
-        !topRole &&
-        myId != null &&
-        Array.isArray((api as any).workspaceUsers)
-      ) {
-        const arr = (api as any).workspaceUsers as any[];
-        isMember = arr.some(
-          wu =>
-            Number(wu?.userId) === Number(myId) &&
-            String(wu?.role ?? '').toUpperCase() === 'MEMBER'
-        );
+      if (!topRole && myId != null && Array.isArray(api.workspaceUsers)) {
+        isMember = api.workspaceUsers.some(wu => {
+          const uid =
+            typeof wu.userId === 'string' ? Number(wu.userId) : wu.userId;
+          const role = (wu.role ?? '').toUpperCase();
+          return Number(uid) === Number(myId) && role === 'MEMBER';
+        });
       }
 
       const canManage = !isMember;
@@ -83,14 +118,13 @@ export default function WorkspacesPage() {
         name: api.name ?? prev?.name ?? '',
         description: api.description ?? prev?.description ?? '',
         imageUrl: api.imageUrl ?? prev?.imageUrl ?? FALLBACK_IMG,
-        inviteCode:
-          (api as any).activeInvitationCode ?? prev?.inviteCode ?? '-',
-        owner: (api as any).superAdminName ?? prev?.owner ?? '—',
+        inviteCode: api.activeInvitationCode ?? prev?.inviteCode ?? '-',
+        owner: api.superAdminName ?? prev?.owner ?? '—',
         members:
-          typeof (api as any).userCount === 'number'
-            ? (api as any).userCount
+          typeof api.userCount === 'number'
+            ? api.userCount
             : prev?.members ?? 0,
-        status: api.isActive ? 'active' : prev?.status ?? 'inactive',
+        status: api.isActive ? ('active' as const) : prev?.status ?? 'inactive',
         canManage,
       };
     },
@@ -101,11 +135,10 @@ export default function WorkspacesPage() {
   const softRefetch = React.useCallback(async () => {
     try {
       const res = await fetchMyWorkspaces();
-      const list: ApiWorkspace[] = (res as any).workspaces ?? res ?? [];
+      const list = toList(res);
       setWorkspaces(prev => {
         const prevMap = new Map(prev.map(p => [p.id, p]));
-        const next = list.map(api => mapToUI(api, prevMap.get(String(api.id))));
-        return next;
+        return list.map(api => mapToUI(api, prevMap.get(String(api.id))));
       });
     } catch (e) {
       console.warn('[softRefetch] failed', e);
@@ -118,12 +151,10 @@ export default function WorkspacesPage() {
         setLoading(true);
         setError(null);
         const res = await fetchMyWorkspaces();
-        const list: ApiWorkspace[] = (res as any).workspaces ?? res ?? [];
+        const list = toList(res);
         setWorkspaces(list.map(api => mapToUI(api)));
-      } catch (err: any) {
-        setError(
-          err?.response?.data?.message || err?.message || '불러오기 실패'
-        );
+      } catch (err: unknown) {
+        setError(getMsg(err));
       } finally {
         setLoading(false);
       }
@@ -157,7 +188,7 @@ export default function WorkspacesPage() {
       const ui = mapToUI(api);
       return prev.some(p => p.id === ui.id) ? prev : [ui, ...prev];
     });
-    softRefetch();
+    void softRefetch();
   };
 
   // 수정
@@ -167,7 +198,7 @@ export default function WorkspacesPage() {
     );
     setEditOpen(false);
     setEditTarget(null);
-    softRefetch();
+    void softRefetch();
   };
 
   const handleEdit = (id: string) => {
@@ -185,9 +216,9 @@ export default function WorkspacesPage() {
     setWorkspaces(prev => prev.filter(w => w.id !== id));
     try {
       await deleteWorkspace(id);
-      softRefetch();
-    } catch (err: any) {
-      alert(err?.response?.data?.message || err?.message || '삭제 실패');
+      void softRefetch();
+    } catch (err: unknown) {
+      alert(getMsg(err));
       setWorkspaces(snapshot);
     }
   };
@@ -201,7 +232,7 @@ export default function WorkspacesPage() {
     try {
       if (next === 'active') await activateWorkspace(id);
       else await deactivateWorkspace(id);
-      softRefetch();
+      void softRefetch();
     } catch {
       setWorkspaces(snapshot);
     }

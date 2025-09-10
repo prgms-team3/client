@@ -117,14 +117,14 @@ export default function GroupManagementPage() {
 
   // 카드 액션 (데모)
   const handleEdit = (id: string) => alert(`편집: ${id}`);
-  const handleDuplicate = (id: string) => {
-    const g = groups.find(x => x.id === id);
-    if (!g) return;
-    setGroups(prev => [
-      { ...g, id: `copy-${Date.now()}`, name: `${g.name} (복제)` },
-      ...prev,
-    ]);
-  };
+  // const handleDuplicate = (id: string) => {
+  //   const g = groups.find(x => x.id === id);
+  //   if (!g) return;
+  //   setGroups(prev => [
+  //     { ...g, id: `copy-${Date.now()}`, name: `${g.name} (복제)` },
+  //     ...prev,
+  //   ]);
+  // };
   const handleDelete = (id: string) =>
     setGroups(prev => prev.filter(g => g.id !== id));
   const handleManageMembers = (id: string) => alert(`멤버 관리 이동: ${id}`);
