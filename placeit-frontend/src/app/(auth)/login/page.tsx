@@ -9,26 +9,16 @@ import {
 } from '@/components/ui/card';
 import Image from 'next/image';
 
-export default function LoginPage() {
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
+const SERVER = process.env.NEXT_PUBLIC_API_BASE_URL!;
 
-  // 공통 이동 유틸
-  const goAuth = (provider: 'google' | 'kakao') => {
-    if (!API_BASE) {
-      // 배포 빌드에서 env 누락 시 'undefined/...'로 가지 않도록 즉시 중단
-      console.error('Missing NEXT_PUBLIC_API_BASE_URL at build time');
-      window.location.href = '/login?error=config';
-      return;
-    }
-    const url = new URL(`/auth/${provider}`, API_BASE);
-    // 배포 환경에서도 현재 호스트를 기준으로 리다이렉트하도록 수정
-    const redirect = new URL('/callback', window.location.origin);
-    url.searchParams.set('redirectUri', redirect.toString());
-    window.location.href = url.toString();
+export default function LoginPage() {
+  const handleKakaoLogin = () => {
+    window.location.href = `${SERVER}/auth/kakao`;
   };
 
-  const handleGoogleLogin = () => goAuth('google');
-  const handleKakaoLogin = () => goAuth('kakao');
+  const handleGoogleLogin = () => {
+    window.location.href = `${SERVER}/auth/google`;
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white to-blue-50/30">

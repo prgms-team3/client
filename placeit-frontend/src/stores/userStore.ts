@@ -31,8 +31,13 @@ interface UserStore {
 
   // actions
   setUser: (u: User | null) => void;
+
   updateUser: (patch: Partial<User>) => void;
   setAccessToken: (t: string | null) => void;
+  setAuth: (payload: {
+    user?: User | null;
+    accessToken?: string | null;
+  }) => void;
   createWorkspace: (payload: CreateWorkspace) => Promise<void>;
   joinWorkspace: (code: string) => Promise<void>;
   reset: () => void;
@@ -96,6 +101,31 @@ export const useUserStore = create<UserStore>()(
         }),
 
       setAccessToken: t => set({ accessToken: t }),
+
+      setAuth: ({ user, accessToken }) =>
+        set(state => {
+          // 토큰 localStorage 동기화 (axios 인터셉터가 쓰는 경우 대비)
+          try {
+            if (typeof window !== 'undefined') {
+              if (accessToken != null) {
+                localStorage.setItem('accessToken', accessToken);
+              } else if (accessToken === null) {
+                localStorage.removeItem('accessToken');
+              }
+            }
+          } catch {}
+
+          return {
+            user:
+              user === undefined
+                ? state.user
+                : user
+                ? normalizeUser(user)
+                : null,
+            accessToken:
+              accessToken === undefined ? state.accessToken : accessToken,
+          };
+        }),
 
       // 초대 코드 없을 시, 워크스페이스 생성
       createWorkspace: async (payload: CreateWorkspace) => {
