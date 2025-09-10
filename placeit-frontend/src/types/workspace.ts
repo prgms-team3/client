@@ -35,3 +35,8 @@ export type CreateWorkspace = {
 export type UpdateWorkspace = Partial<Omit<CreateWorkspace, 'name'>> & {
   name?: string;
 };
+
+export type JoinWorkspaceResponse =
+  | { workspace?: { id?: number | string } }
+  | { id?: number | string }
+  | any;

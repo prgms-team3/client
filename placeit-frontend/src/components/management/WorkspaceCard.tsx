@@ -15,6 +15,7 @@ export type WorkspaceCardProps = {
   inviteCode: string;
   status: WorkspaceStatus;
   imageUrl?: string;
+  canManage?: boolean;
 
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
@@ -31,6 +32,7 @@ export default function WorkspaceCard({
   inviteCode,
   status,
   imageUrl,
+  canManage = true,
   onEdit,
   onDelete,
   onCopyInvite,
@@ -77,26 +79,31 @@ export default function WorkspaceCard({
           <h3 className="line-clamp-1 text-lg font-semibold text-gray-900">
             {name}
           </h3>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8 border-gray-300"
-              onClick={() => onEdit?.(id)}
-              aria-label="워크스페이스 수정"
-            >
-              <Edit3 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8 border-gray-300 text-rose-600 hover:text-rose-700"
-              onClick={() => onDelete?.(id)}
-              aria-label="워크스페이스 삭제"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+          {/* canManage일 때만 렌더 */}
+          {canManage && (
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 border-gray-300"
+                onClick={() => onEdit?.(id)}
+                aria-label="워크스페이스 수정"
+                title="워크스페이스 수정"
+              >
+                <Edit3 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 border-gray-300 text-rose-600 hover:text-rose-700"
+                onClick={() => onDelete?.(id)}
+                aria-label="워크스페이스 삭제"
+                title="워크스페이스 삭제"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* 설명 */}
@@ -138,18 +145,20 @@ export default function WorkspaceCard({
           </div>
         </div>
 
-        <div className="mt-4 flex justify-end">
-          <Button
-            onClick={handleToggle}
-            className={
-              isActive
-                ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-            }
-          >
-            {isActive ? '비활성화' : '활성화'}
-          </Button>
-        </div>
+        {canManage && (
+          <div className="mt-4 flex justify-end">
+            <Button
+              onClick={handleToggle}
+              className={
+                isActive
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              }
+            >
+              {isActive ? '비활성화' : '활성화'}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -16,6 +16,7 @@ import {
   activateWorkspace,
   deactivateWorkspace,
 } from '@/services/workspaces';
+import { useUserStore } from '@/stores/userStore';
 
 type WSStatus = 'active' | 'inactive';
 type WSFilter = 'all' | WSStatus;
@@ -29,6 +30,7 @@ type WorkspaceUI = {
   owner: string;
   members: number;
   status: WSStatus;
+  canManage: boolean;
 };
 
 const FILTERS: FilterItem<WSFilter>[] = [
@@ -41,6 +43,9 @@ const FALLBACK_IMG =
   'https://images.unsplash.com/photo-1497366216548-37526070297c';
 
 export default function WorkspacesPage() {
+  const { user } = useUserStore();
+  const myId = user?.id;
+
   const [q, setQ] = React.useState('');
   const [k, setK] = React.useState<WSFilter>('all');
 
@@ -52,20 +57,44 @@ export default function WorkspacesPage() {
   const [editTarget, setEditTarget] = React.useState<WorkspaceUI | null>(null);
 
   const mapToUI = React.useCallback(
-    (api: ApiWorkspace, prev?: WorkspaceUI): WorkspaceUI => ({
-      id: String(api.id ?? prev?.id ?? ''),
-      name: api.name ?? prev?.name ?? '',
-      description: api.description ?? prev?.description ?? '',
-      imageUrl: api.imageUrl ?? prev?.imageUrl ?? FALLBACK_IMG,
-      inviteCode: (api as any).activeInvitationCode ?? prev?.inviteCode ?? '-',
-      owner: (api as any).superAdminName ?? prev?.owner ?? '—',
-      members:
-        typeof (api as any).userCount === 'number'
-          ? (api as any).userCount
-          : prev?.members ?? 0,
-      status: api.isActive ? 'active' : prev?.status ?? 'inactive',
-    }),
-    []
+    (api: ApiWorkspace, prev?: WorkspaceUI): WorkspaceUI => {
+      // 1) 서버가 내려준 사용자 역할 우선
+      const topRole = String((api as any).userRole ?? '').toUpperCase();
+      let isMember = topRole ? topRole === 'MEMBER' : false;
+
+      // 2) 없으면 workspaceUsers에서 내 userId로 확인
+      if (
+        !topRole &&
+        myId != null &&
+        Array.isArray((api as any).workspaceUsers)
+      ) {
+        const arr = (api as any).workspaceUsers as any[];
+        isMember = arr.some(
+          wu =>
+            Number(wu?.userId) === Number(myId) &&
+            String(wu?.role ?? '').toUpperCase() === 'MEMBER'
+        );
+      }
+
+      const canManage = !isMember;
+
+      return {
+        id: String(api.id ?? prev?.id ?? ''),
+        name: api.name ?? prev?.name ?? '',
+        description: api.description ?? prev?.description ?? '',
+        imageUrl: api.imageUrl ?? prev?.imageUrl ?? FALLBACK_IMG,
+        inviteCode:
+          (api as any).activeInvitationCode ?? prev?.inviteCode ?? '-',
+        owner: (api as any).superAdminName ?? prev?.owner ?? '—',
+        members:
+          typeof (api as any).userCount === 'number'
+            ? (api as any).userCount
+            : prev?.members ?? 0,
+        status: api.isActive ? 'active' : prev?.status ?? 'inactive',
+        canManage,
+      };
+    },
+    [myId]
   );
 
   // 화면 깜빡임 없이 최신 목록을 가져오는 GET
@@ -249,6 +278,7 @@ export default function WorkspacesPage() {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onToggleStatus={handleToggleStatus}
+                canManage={w.canManage}
               />
             ))}
           </div>
