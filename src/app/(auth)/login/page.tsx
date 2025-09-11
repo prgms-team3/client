@@ -9,13 +9,13 @@ import {
 } from '@/components/ui/card';
 import Image from 'next/image';
 
-const SERVER = process.env.NEXT_PUBLIC_API_BASE_URL!;
+const SERVER = process.env.NEXT_PUBLIC_API_URL!;
 // const SERVER = 'https://placeit-server-332546556871.asia-northeast1.run.app';
 // const SERVER = 'http://localhost:3000';
 
 export default function LoginPage() {
   const handleKakaoLogin = () => {
-    window.location.href = `${SERVER}/auth/kakao`;
+    window.location.href = `${SERVER}`;
   };
 
   const handleGoogleLogin = () => {
