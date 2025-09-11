@@ -35,7 +35,7 @@ export default function InviteFlowPage() {
         await joinWorkspace(inviteCode.trim());
         router.replace('/dashboard');
       } catch {
-        // 실패 시 조용히 무시 (필요하면 토스트 추가)
+        // 실패 시 조용히 무시
       }
     } else {
       if (!workspaceName.trim()) return;
@@ -44,7 +44,7 @@ export default function InviteFlowPage() {
         await createWorkspace(payload);
         router.replace('/dashboard');
       } catch {
-        // 실패 시 조용히 무시 (필요하면 토스트 추가)
+        // 실패 시 조용히 무시
       }
     }
   };
