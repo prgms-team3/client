@@ -1,13 +1,7 @@
 // src/lib/axios.ts
 import axios from 'axios';
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
-
-console.log('NEXT_PUBLIC_API_BASE_UR:', BASE);
-
-if (!BASE) {
-  // 배포에서 이 에러가 보이면 env가 비어있는 겁니다.
-  throw new Error('NEXT_PUBLIC_API_BASE_URL is not set');
-}
+// const BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+const BASE = 'https://placeit-server-332546556871.asia-northeast1.run.app';
 
 export const api = axios.create({
   baseURL: BASE,
