@@ -6,6 +6,7 @@ steps:
     args:
       [
         'build',
+        '--build-arg=NEXT_PUBLIC_API_BASE_URL=${_API_BASE_URL}',
         '-t',
         '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}:${SHORT_SHA}',
         './placeit-frontend',
@@ -42,3 +43,4 @@ images:
 substitutions:
   _SERVICE_NAME: 'placeit-client'
   _REGION: 'asia-northeast1'
+  _API_BASE_URL: 'https://placeit-server-332546556871.asia-northeast1.run.app'
