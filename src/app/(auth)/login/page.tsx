@@ -9,14 +9,14 @@ import {
 } from '@/components/ui/card';
 import Image from 'next/image';
 
-// const SERVER = process.env.NEXT_PUBLIC_API_BASE_URL!;
+const SERVER = process.env.API_BASE_URL!;
 // const SERVER = 'https://placeit-server-332546556871.asia-northeast1.run.app';
 // const SERVER = 'http://localhost:3000';
-const SERVER = 'https://www.naver.com';
+const NAVER = 'https://www.naver.com';
 
 export default function LoginPage() {
   const handleKakaoLogin = () => {
-    window.location.href = `${SERVER}`;
+    window.location.href = `${NAVER}`;
   };
 
   const handleGoogleLogin = () => {
