@@ -28,7 +28,6 @@ RUN chown -R appuser:appgroup /usr/src/app
 USER appuser
 
 ENV NODE_ENV=production
-ENV NEXT_PUBLIC_API_BASE_URL=https://placeit-server-332546556871.asia-northeast1.run.app
 ENV PORT=3000
 EXPOSE 3000
 
