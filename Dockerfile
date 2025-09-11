@@ -31,7 +31,7 @@ RUN chown -R appuser:appgroup /usr/src/app
 USER appuser
 
 ENV NODE_ENV=production
-ENV API_BASE_URL=https://placeit-server-332546556871.asia-northeast1.run.app
+ENV NEXT_PUBLIC_API_BASE_URL=https://placeit-server-332546556871.asia-northeast1.run.app
 
 
 CMD ["npm", "start"]
