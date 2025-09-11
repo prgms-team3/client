@@ -13,7 +13,7 @@ import {
   UserCog,
   Shield,
   Building2,
-  type LucideIcon, // ⬅️ 아이콘 타입
+  type LucideIcon,
 } from 'lucide-react';
 import { useUserStore } from '@/stores/userStore';
 import { usePathname } from 'next/navigation';
@@ -223,11 +223,15 @@ export function Sidebar({ activePage, userName = '김관리자' }: SidebarProps)
               {navigationItems.map(item => {
                 const Icon = item.icon;
 
-                // activePage가 주어지면 그 값을 우선, 아니면 URL 기준
+                // URL 기반의 활성 상태
+                const isRouteActive =
+                  normalize(pathname) === normalize(item.href) ||
+                  pathname.startsWith(`${normalize(item.href)}/`);
+
+                // activePage가 있어도 라우트로 활성화된 경우는 인정
                 const isActive = activePage
-                  ? item.id === activePage
-                  : normalize(pathname) === normalize(item.href) ||
-                    pathname.startsWith(`${normalize(item.href)}/`);
+                  ? item.id === activePage || isRouteActive
+                  : isRouteActive;
 
                 return (
                   <li key={item.id}>
@@ -280,7 +284,7 @@ export function Sidebar({ activePage, userName = '김관리자' }: SidebarProps)
                       )}
                     </Link>
 
-                    {/* 하위메뉴 */}
+                    {/* 하위메뉴: 라우트 활성 기준을 그대로 사용 */}
                     {item.subItems && isActive && (
                       <ul className="ml-6 mt-2 space-y-1">
                         {item.subItems.map(subItem => {
