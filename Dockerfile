@@ -15,7 +15,7 @@ COPY --from=builder /usr/src/app/package*.json ./
 RUN npm ci --only=production
 COPY --from=builder /usr/src/app/.next ./.next
 COPY --from=builder /usr/src/app/public ./public
-COPY --from=builder /usr/src/app/next.config.js ./next.config.js
+COPY --from=builder /usr/src/app/next.config.ts ./next.config.js
 RUN chown -R appuser:appgroup /usr/src/app
 USER appuser
 CMD ["npm", "start"]
