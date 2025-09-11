@@ -36,4 +36,4 @@ images:
 substitutions:
   _SERVICE_NAME: 'placeit-client'
   _REGION: 'asia-northeast1'
-  _NEXT_PUBLIC_API_URL: 'https://server-332546556871.asia-northeast1.run.app'
+  _NEXT_PUBLIC_API_URL: 'https://www.naver.com/'
