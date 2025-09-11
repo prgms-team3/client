@@ -1,9 +1,6 @@
 FROM node:20-alpine AS builder
 WORKDIR /usr/src/app
 
-ARG NEXT_PUBLIC_API_BASE_URL
-ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
-
 # placeit-frontend 폴더의 package.json 복사
 COPY package*.json ./
 RUN npm ci
@@ -31,7 +28,5 @@ RUN chown -R appuser:appgroup /usr/src/app
 USER appuser
 
 ENV NODE_ENV=production
-ENV NEXT_PUBLIC_API_BASE_URL=https://placeit-server-332546556871.asia-northeast1.run.app
-
 
 CMD ["npm", "start"]
