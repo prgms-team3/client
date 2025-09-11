@@ -9,7 +9,8 @@ import {
 } from '@/components/ui/card';
 import Image from 'next/image';
 
-const SERVER = process.env.NEXT_PUBLIC_API_BASE_URL!;
+// const SERVER = process.env.NEXT_PUBLIC_API_BASE_URL!;
+const SERVER = 'https://placeit-server-332546556871.asia-northeast1.run.app';
 
 export default function LoginPage() {
   const handleKakaoLogin = () => {
