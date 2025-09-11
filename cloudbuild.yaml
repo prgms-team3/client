@@ -23,6 +23,7 @@ steps:
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}:${SHORT_SHA}'
       - '--region'
       - '${_REGION}'
+      - --set-env-vars=NEXT_PUBLIC_API_URL=${_NEXT_PUBLIC_API_URL}'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated' # 필요에 따라 설정
