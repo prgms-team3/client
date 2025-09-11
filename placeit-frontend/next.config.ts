@@ -1,14 +1,9 @@
 import type { NextConfig } from 'next';
 
-/** @type {import('next').NextConfig} */
-
-module.exports = {
+const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-};
-
-const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
@@ -18,12 +13,6 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'http',
-        hostname: 'localhost',
-        port: '3000',
-        pathname: '/images/**',
-      },
-      {
-        protocol: 'https',
         hostname: 'localhost',
         port: '3000',
         pathname: '/images/**',
