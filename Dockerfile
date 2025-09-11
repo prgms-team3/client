@@ -1,15 +1,14 @@
 FROM node:20-alpine AS builder
 WORKDIR /usr/src/app
 
-# API 서버의 주소를 빌드 시점에 인자로 받습니다.
 ARG NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 
 # placeit-frontend 폴더의 package.json 복사
-COPY placeit-frontend/package*.json ./
+COPY package*.json ./
 RUN npm ci
 # placeit-frontend 폴더의 모든 파일 복사
-COPY placeit-frontend/ .
+COPY . .
 RUN npm run build
 
 #===================#
@@ -17,7 +16,7 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /usr/src/app
 # placeit-frontend 폴더의 package.json 복사
-COPY placeit-frontend/package*.json ./
+COPY package*.json ./
 RUN npm ci --only=production
 
 # Next.js 빌드 결과물 복사
@@ -33,5 +32,6 @@ USER appuser
 
 ENV NODE_ENV=production
 ENV NEXT_PUBLIC_API_BASE_URL=https://placeit-server-332546556871.asia-northeast1.run.app
+
 
 CMD ["npm", "start"]
