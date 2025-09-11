@@ -1,7 +1,6 @@
-// src/lib/axios.ts
 import axios from 'axios';
-// const BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
-const BASE = 'https://placeit-server-332546556871.asia-northeast1.run.app';
+const BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+// const BASE = 'https://placeit-server-332546556871.asia-northeast1.run.app';
 
 export const api = axios.create({
   baseURL: BASE,
