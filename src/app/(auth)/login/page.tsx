@@ -16,11 +16,11 @@ const NAVER = 'https://www.naver.com';
 
 export default function LoginPage() {
   const handleKakaoLogin = () => {
-    window.location.href = `${NAVER}`;
+    window.location.href = `${SERVER}`;
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = `${SERVER}/auth/google`;
+    window.location.href = `${SERVER}` + `/auth/google`;
   };
 
   return (
