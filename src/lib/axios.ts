@@ -2,13 +2,6 @@
 import axios from 'axios';
 const BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-console.log('URL:', BASE);
-
-if (!BASE) {
-  // 배포에서 이 에러가 보이면 env가 비어있는 겁니다.
-  throw new Error('URL is not set');
-}
-
 export const api = axios.create({
   baseURL: BASE,
   withCredentials: true, // ← 쿠키 전송/수신
