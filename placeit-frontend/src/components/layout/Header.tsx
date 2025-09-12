@@ -6,16 +6,17 @@ import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/stores/userStore';
 import { useLogout } from '@/hooks/useLogout';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useConfig } from '@/context/config-context';
 
 function WorkspaceToggle() {
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
 
-  const BASE = process.env.API_BASE_URL;
+  const { apiBaseUrl } = useConfig();
 
   // 유저 정보
   const { user } = useUserStore();
-  const ownerKey = user?.id != null ? `u:${user.id}|${BASE ?? ''}` : 'guest';
+  const ownerKey = user?.id != null ? `u:${user.id}|${apiBaseUrl}` : 'guest';
 
   const {
     list,
