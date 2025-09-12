@@ -1,6 +1,9 @@
 import axios from 'axios';
 const BASE = process.env.API_BASE_URL!;
 
+if (!BASE) {
+  throw new Error('API_BASE_URL is not defined');
+}
 export const api = axios.create({
   baseURL: BASE,
   withCredentials: true, // ← 쿠키 전송/수신
