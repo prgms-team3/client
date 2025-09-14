@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Crown, Edit3, Trash2, Users, Building2, Shield } from 'lucide-react';
+import { Edit2, Trash2, Users, Building2, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -106,25 +106,24 @@ export default function GroupCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8"
+        {/* 수정/삭제: MeetingRoomCard와 동일한 아이콘 버튼 UX */}
+        <div className="flex items-center gap-1.5">
+          <button
+            className="p-1 text-gray-500 hover:text-gray-800"
             onClick={() => onEdit?.(id)}
+            aria-label="그룹 편집"
             title="편집"
           >
-            <Edit3 className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8 text-red-600 hover:text-red-700"
+            <Edit2 className="h-4 w-4" />
+          </button>
+          <button
+            className="p-1 text-red-500 hover:text-red-700"
             onClick={() => onDelete?.(id)}
+            aria-label="그룹 삭제"
             title="삭제"
           >
             <Trash2 className="h-4 w-4" />
-          </Button>
+          </button>
         </div>
       </div>
 
