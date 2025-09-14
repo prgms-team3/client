@@ -19,6 +19,8 @@ import {
 import { useUserStore } from '@/stores/userStore';
 import { usePathname } from 'next/navigation';
 import { fetchMyWorkspaces } from '@/services/workspaces';
+import { fetchWorkspaceUsers } from '@/services/workspaceUsers';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 interface SidebarProps {
   /** 선택적으로 현재 활성 메뉴를 강제로 지정할 수 있음 (없으면 URL 기준) */
@@ -54,6 +56,8 @@ export function Sidebar({ activePage, userName = '김관리자' }: SidebarProps)
   const currentMonth = currentDate.getMonth() + 1;
 
   const [workspaceCount, setWorkspaceCount] = useState<number>(0);
+  const [userCount, setUserCount] = useState<number>(0);
+  const currentId = useWorkspaceStore(s => s.currentId);
 
   const pathname = usePathname();
   const normalize = (p: string) => (p.endsWith('/') ? p.slice(0, -1) : p);
@@ -88,6 +92,23 @@ export function Sidebar({ activePage, userName = '김관리자' }: SidebarProps)
       }
     })();
   }, []);
+
+  // 사용자수 가져오기
+  useEffect(() => {
+    if (!currentId) {
+      setUserCount(0);
+      return;
+    }
+    (async () => {
+      try {
+        const list = await fetchWorkspaceUsers(currentId);
+        setUserCount(list.length);
+      } catch (e) {
+        console.error('사용자 불러오기 실패:', e);
+        setUserCount(0);
+      }
+    })();
+  }, [currentId]);
 
   const navigationItems: NavItem[] = [
     {
@@ -136,7 +157,7 @@ export function Sidebar({ activePage, userName = '김관리자' }: SidebarProps)
       subtitle: '시스템 사용자',
       icon: UserCog,
       href: '/users',
-      badge: '24',
+      badge: userCount > 0 ? String(userCount) : null,
       subItems: [
         {
           id: 'user-management',

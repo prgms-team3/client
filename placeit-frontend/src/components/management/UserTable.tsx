@@ -9,6 +9,7 @@ type Props = {
   onChangeRole?: (id: string) => void;
   onDelete?: (id: string) => void;
   className?: string;
+  canDelete?: boolean;
 };
 
 export default function UserTable({
@@ -17,6 +18,7 @@ export default function UserTable({
   onChangeRole,
   onDelete,
   className,
+  canDelete = false,
 }: Props) {
   return (
     <div className={className}>
@@ -53,6 +55,7 @@ export default function UserTable({
                   onEdit={onEdit}
                   onChangeRole={onChangeRole}
                   onDelete={onDelete}
+                  canDelete={canDelete}
                 />
               ))
             )}
