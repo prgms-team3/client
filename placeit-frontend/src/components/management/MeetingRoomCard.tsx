@@ -8,33 +8,23 @@ import {
   Clipboard,
   Wifi,
   Monitor,
-  Music,
   Volume2,
   Mic,
-  Camera,
-  Lightbulb,
-  Clapperboard,
+  AirVent,
   Presentation,
-  Tv,
-  Video,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export type Status = 'available' | 'unavailable' | 'maintenance';
 
-export type FacilityKey =
-  | 'whiteboard'
-  | 'wifi'
+export type AmenityKey =
   | 'monitor'
-  | 'audio'
+  | 'projector'
+  | 'whiteboard'
+  | 'aircon'
+  | 'microphone'
   | 'speaker'
-  | 'mic'
-  | 'camera'
-  | 'light'
-  | 'recorder'
-  | 'beam_projector'
-  | 'smart_tv'
-  | 'video_conf';
+  | 'wifi';
 
 export interface MeetingRoomCardProps {
   name: string;
@@ -43,30 +33,26 @@ export interface MeetingRoomCardProps {
   capacity: number;
   monthlyReservations: number;
   utilizationRate: number;
-  status: Status;
-  facilities: FacilityKey[];
+  status: Status; // 실제로는 available/unavailable만 사용
+  facilities: AmenityKey[];
   imageUrl: string;
-  onStatusChange?: (next: Status) => void;
-  /** 승인 정책 (항상 칩 노출) */
+  onToggleActive?: () => void;
+  onDelete?: () => void;
+  onEdit?: () => void; // ← 추가
   approvalPolicy?: 'auto' | 'approval_required';
 }
 
 const facilityMap: Record<
-  FacilityKey,
+  AmenityKey,
   { label: string; Icon: React.ComponentType<{ className?: string }> }
 > = {
   whiteboard: { label: '화이트보드', Icon: Clipboard },
-  wifi: { label: 'WiFi', Icon: Wifi },
+  wifi: { label: 'Wi-Fi', Icon: Wifi },
   monitor: { label: '모니터', Icon: Monitor },
-  audio: { label: '오디오', Icon: Music },
   speaker: { label: '스피커', Icon: Volume2 },
-  mic: { label: '마이크', Icon: Mic },
-  camera: { label: '카메라', Icon: Camera },
-  light: { label: '조명', Icon: Lightbulb },
-  recorder: { label: '녹화장비', Icon: Clapperboard },
-  beam_projector: { label: '빔프로젝터', Icon: Presentation },
-  smart_tv: { label: '스마트TV', Icon: Tv },
-  video_conf: { label: '화상회의', Icon: Video },
+  microphone: { label: '마이크', Icon: Mic },
+  aircon: { label: '에어컨', Icon: AirVent },
+  projector: { label: '프로젝터', Icon: Presentation },
 };
 
 const statusBadgeClass = (status: Status) =>
@@ -101,51 +87,12 @@ export default function MeetingRoomCard({
   status,
   facilities,
   imageUrl,
-  onStatusChange,
+  onToggleActive,
+  onDelete,
+  onEdit,
   approvalPolicy = 'auto',
 }: MeetingRoomCardProps) {
-  const actions = React.useMemo(() => {
-    if (status === 'available') {
-      return [
-        {
-          label: '사용 중지',
-          variant: 'destructive' as const,
-          next: 'unavailable' as Status,
-        },
-        {
-          label: '점검 시작',
-          variant: 'outline' as const,
-          next: 'maintenance' as Status,
-        },
-      ];
-    }
-    if (status === 'unavailable') {
-      return [
-        {
-          label: '사용 시작',
-          variant: 'default' as const,
-          next: 'available' as Status,
-        },
-        {
-          label: '점검 시작',
-          variant: 'outline' as const,
-          next: 'maintenance' as Status,
-        },
-      ];
-    }
-    return [
-      {
-        label: '사용 시작',
-        variant: 'default' as const,
-        next: 'available' as Status,
-      },
-      {
-        label: '점검 완료',
-        variant: 'outline' as const,
-        next: 'available' as Status,
-      },
-    ];
-  }, [status]);
+  const isActive = status === 'available';
 
   return (
     <div className="w-full rounded-lg border bg-white p-4 shadow">
@@ -178,19 +125,22 @@ export default function MeetingRoomCard({
         >
           {approvalBadgeText(approvalPolicy)}
         </span>
-        {/* 회의실 이름 및 설명 */}
+
+        {/* 제목/액션 */}
         <div className="mt-1 mb-1 flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">{name}</h2>
           <div className="flex gap-2">
             <button
               className="p-1 text-gray-500 hover:text-gray-800"
               aria-label="수정"
+              onClick={onEdit}
             >
               <Edit2 className="h-4 w-4" />
             </button>
             <button
               className="p-1 text-red-500 hover:text-red-700"
               aria-label="삭제"
+              onClick={onDelete}
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -199,7 +149,7 @@ export default function MeetingRoomCard({
 
         <p className="text-sm text-gray-500">{description}</p>
 
-        {/* 회의실 상세정보 */}
+        {/* 상세 */}
         <div className="mt-3 grid grid-cols-2 gap-y-1 text-sm text-gray-700">
           <span>
             위치: <b>{location}</b>
@@ -215,7 +165,7 @@ export default function MeetingRoomCard({
           </span>
         </div>
 
-        {/* 시설 태그 */}
+        {/* 설비 태그 */}
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
           {facilities.map(key => {
             const item = facilityMap[key];
@@ -235,17 +185,14 @@ export default function MeetingRoomCard({
 
         {/* 하단 버튼 */}
         <div className="mt-4 flex gap-2">
-          {actions.map(a => (
-            <Button
-              key={a.label}
-              variant={a.variant}
-              size="lg"
-              onClick={() => onStatusChange?.(a.next)}
-              aria-label={a.label}
-            >
-              {a.label}
-            </Button>
-          ))}
+          <Button
+            variant={isActive ? 'destructive' : 'default'}
+            size="lg"
+            onClick={onToggleActive}
+            aria-label={isActive ? '사용 중지' : '사용 시작'}
+          >
+            {isActive ? '사용 중지' : '사용 시작'}
+          </Button>
         </div>
       </div>
     </div>
