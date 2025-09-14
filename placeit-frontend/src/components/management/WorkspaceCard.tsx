@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Edit3, Trash2, Copy, UserCircle2, Users } from 'lucide-react';
+import { Edit2, Trash2, Copy, UserCircle2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 
@@ -82,53 +82,46 @@ export default function WorkspaceCard({
           <h3 className="line-clamp-1 text-lg font-semibold text-gray-900">
             {name}
           </h3>
-          {/* canManage일 때만 렌더 */}
+
+          {/* 수정/삭제: MeetingRoomCard와 동일한 아이콘 버튼 UX */}
           {canManage && (
             <div className="flex shrink-0 items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 border-gray-300"
+              <button
+                className="p-1 text-gray-500 hover:text-gray-800"
                 onClick={() => onEdit?.(id)}
                 aria-label="워크스페이스 수정"
                 title="워크스페이스 수정"
               >
-                <Edit3 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 border-gray-300 text-rose-600 hover:text-rose-700"
+                <Edit2 className="h-4 w-4" />
+              </button>
+              <button
+                className="p-1 text-red-500 hover:text-red-700"
                 onClick={() => onDelete?.(id)}
                 aria-label="워크스페이스 삭제"
                 title="워크스페이스 삭제"
               >
                 <Trash2 className="h-4 w-4" />
-              </Button>
+              </button>
             </div>
           )}
         </div>
 
-        {/* 설명 */}
         {description && (
           <p className="mb-2 line-clamp-2 text-sm text-gray-600">
             {description}
           </p>
         )}
 
-        {/* 소유자 */}
         <div className="flex items-center gap-2 text-sm text-gray-700">
           <UserCircle2 className="h-4 w-4 text-gray-500" />
           <span className="truncate">소유자: {owner}</span>
         </div>
 
-        {/* 멤버수 */}
-        <div className="mt-1 mb-3 flex items-center gap-1.5 text-gray-700 text-sm">
+        <div className="mt-1 mb-3 flex items-center gap-1.5 text-sm text-gray-700">
           <Users className="h-4 w-4" />
           <span> 멤버 {members.toLocaleString()}명</span>
         </div>
 
-        {/* 초대 코드 */}
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-2">
           <div className="mb-1 text-xs text-gray-500">초대 코드</div>
           <div className="flex items-center justify-between gap-2">
@@ -152,11 +145,8 @@ export default function WorkspaceCard({
           <div className="mt-4 flex justify-end">
             <Button
               onClick={handleToggle}
-              className={
-                isActive
-                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-              }
+              variant={isActive ? 'destructive' : 'default'}
+              className="text-white"
             >
               {isActive ? '비활성화' : '활성화'}
             </Button>

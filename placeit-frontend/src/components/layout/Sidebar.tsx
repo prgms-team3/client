@@ -20,6 +20,7 @@ import { useUserStore } from '@/stores/userStore';
 import { usePathname } from 'next/navigation';
 import { fetchMyWorkspaces } from '@/services/workspaces';
 import { fetchWorkspaceUsers } from '@/services/workspaceUsers';
+import { fetchWorkspaceRooms } from '@/services/meetingRooms';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 interface SidebarProps {
@@ -49,15 +50,16 @@ type NavItem = {
   subItems?: NavSubItem[];
 };
 
-export function Sidebar({ activePage, userName = '김관리자' }: SidebarProps) {
+export function Sidebar({ activePage, userName = '홍길동' }: SidebarProps) {
   const { user } = useUserStore();
+  const currentId = useWorkspaceStore(s => s.currentId);
   const currentDate = new Date();
   const currentDay = currentDate.getDate();
   const currentMonth = currentDate.getMonth() + 1;
 
   const [workspaceCount, setWorkspaceCount] = useState<number>(0);
   const [userCount, setUserCount] = useState<number>(0);
-  const currentId = useWorkspaceStore(s => s.currentId);
+  const [roomCount, setRoomCount] = useState<number>(0);
 
   const pathname = usePathname();
   const normalize = (p: string) => (p.endsWith('/') ? p.slice(0, -1) : p);
@@ -110,6 +112,23 @@ export function Sidebar({ activePage, userName = '김관리자' }: SidebarProps)
     })();
   }, [currentId]);
 
+  // 회의실 수 가져오기
+  useEffect(() => {
+    if (!currentId) {
+      setRoomCount(0);
+      return;
+    }
+    (async () => {
+      try {
+        const rooms = await fetchWorkspaceRooms(currentId);
+        setRoomCount(rooms.length);
+      } catch (e) {
+        console.error('회의실 불러오기 실패:', e);
+        setRoomCount(0);
+      }
+    })();
+  }, [currentId]);
+
   const navigationItems: NavItem[] = [
     {
       id: 'dashboard',
@@ -146,10 +165,10 @@ export function Sidebar({ activePage, userName = '김관리자' }: SidebarProps)
     {
       id: 'meeting-rooms',
       label: '회의실 관리',
-      subtitle: '8개 회의실',
+      subtitle: `${roomCount}개 회의실`,
       icon: Building,
       href: '/meeting-rooms',
-      badge: '8',
+      badge: roomCount > 0 ? String(roomCount) : null,
     },
     {
       id: 'users',
