@@ -12,25 +12,19 @@ import AddUserDialog, {
 } from '@/components/management/AddUserDialog';
 import UserTable from '@/components/management/UserTable';
 import type { UserRowData } from '@/components/management/UserRow';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import {
+  fetchWorkspaceUsers,
+  type ApiWorkspaceUser,
+} from '@/services/workspaceUsers';
+import { useUserStore } from '@/stores/userStore';
+import { deleteWorkspaceUser } from '@/services/workspaceUsers';
 
+// 필터 타입
 type UserStatus = 'active' | 'suspended';
-type UserRole = 'admin' | 'member';
-type RoleFilter = 'all' | UserRole;
-type DeptFilter = 'all' | string; // 'all' 또는 특정 부서명
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  status: UserStatus;
-  department?: string; // 부서
-  title?: string; // 직급
-  createdAt: string; // 가입/생성 시각
-  lastLoginAt?: string;
-  reservationsCount?: number;
-  avatarUrl?: string;
-}
+type UserRole = 'admin' | 'manager' | 'member';
+type RoleFilter = 'all' | Extract<UserRole, 'admin' | 'member'>;
+type DeptFilter = 'all' | string;
 
 const ROLE_FILTERS: FilterItem<RoleFilter>[] = [
   { key: 'all', label: '모든 역할' },
@@ -38,94 +32,147 @@ const ROLE_FILTERS: FilterItem<RoleFilter>[] = [
   { key: 'member', label: '사용자' },
 ];
 
+// API → 테이블 행으로 변환
+function mapApiToRow(u: ApiWorkspaceUser): UserRowData {
+  const role: UserRole =
+    u.role === 'SUPER_ADMIN' || u.role === 'ADMIN'
+      ? 'admin'
+      : u.role === 'MANAGER'
+      ? 'manager'
+      : 'member';
+
+  const status: UserStatus = u.user.isActive ? 'active' : 'suspended';
+
+  return {
+    id: String(u.user.id),
+    name: u.user.name,
+    email: u.user.email,
+    department: u.department ?? undefined,
+    title: u.position ?? undefined,
+    role, // 'admin' | 'manager' | 'member'
+    status, // 'active' | 'suspended'
+    reservationsCount: undefined,
+    lastLoginAt: u.user.updatedAt || u.updatedAt || undefined,
+    avatarUrl: undefined,
+  };
+}
+
 export default function UserManagementPage() {
-  // 검색어 & 역할 필터
   const [q, setQ] = React.useState('');
   const [k, setK] = React.useState<RoleFilter>('all');
-  const [dept, setDept] = React.useState<DeptFilter>('all'); // 부서 필터 상태
+  const [dept, setDept] = React.useState<DeptFilter>('all');
 
-  // 임시 사용자 데이터 (추후 서버 연동)
-  const [users, setUsers] = React.useState<User[]>([
-    {
-      id: 'u1',
-      name: '박수연',
-      email: 'suyeon@example.com',
-      role: 'admin',
-      status: 'active',
-      department: '플랫폼개발팀',
-      title: '리드',
-      createdAt: '2025-08-02T04:12:00Z',
-      lastLoginAt: '2025-08-28T06:12:00Z',
-      reservationsCount: 24,
-      // avatarUrl: 'https://...' // 필요 시
-    },
-    {
-      id: 'u2',
-      name: '김철수',
-      email: 'chulsoo@example.com',
-      role: 'member',
-      status: 'active',
-      department: '경영지원팀',
-      title: '사원',
-      createdAt: '2025-08-29T10:05:00Z',
-      reservationsCount: 12,
-    },
-    {
-      id: 'u3',
-      name: '이영희',
-      email: 'younghee@example.com',
-      role: 'member',
-      status: 'active',
-      department: '프론트엔드팀',
-      title: '매니저',
-      createdAt: '2025-07-21T02:20:00Z',
-      lastLoginAt: '2025-08-25T02:20:00Z',
-      reservationsCount: 18,
-    },
-    {
-      id: 'u4',
-      name: 'John Doe',
-      email: 'john@example.com',
-      role: 'member',
-      status: 'suspended',
-      department: '인프라팀',
-      title: '주임',
-      createdAt: '2025-08-05T09:00:00Z',
-      reservationsCount: 5,
-    },
-  ]);
+  const [rows, setRows] = React.useState<UserRowData[]>([]);
+  const [rawMembers, setRawMembers] = React.useState<ApiWorkspaceUser[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const currentId = useWorkspaceStore(s => s.currentId);
+  const myUserId = useUserStore(s => s.user?.id);
+
+  // ===== 서버에서 멤버 목록 가져오기 =====
+  React.useEffect(() => {
+    if (!currentId) {
+      setRows([]);
+      setRawMembers([]);
+      return;
+    }
+    let aborted = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const list = await fetchWorkspaceUsers(currentId);
+        if (aborted) return;
+        setRawMembers(list);
+        setRows(list.map(mapApiToRow));
+      } catch (err: any) {
+        if (aborted) return;
+        const status = err?.response?.status;
+        const serverMsg = err?.response?.data?.message;
+        const msg =
+          status === 401
+            ? serverMsg || '인증 오류(401). 액세스 토큰을 확인하세요.'
+            : status === 403
+            ? serverMsg ||
+              '접근 권한이 없습니다(403). 워크스페이스 권한을 확인하세요.'
+            : serverMsg ||
+              err?.message ||
+              '사용자 목록 조회 중 오류가 발생했습니다.';
+        setError(msg);
+      } finally {
+        if (!aborted) setLoading(false);
+      }
+    })();
+    return () => {
+      aborted = true;
+    };
+  }, [currentId]);
+
+  // 내 워크스페이스 역할을 현재 목록에서 찾기
+  const myWorkspaceRole = React.useMemo(() => {
+    if (!myUserId) return null;
+    const me = rawMembers.find(m => String(m.user.id) === String(myUserId));
+    return me?.role ?? null; // 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'MEMBER' | undefined
+  }, [rawMembers, myUserId]);
+
+  // 관리자만 삭제 가능 (SUPER_ADMIN/ADMIN)
+  const canDelete =
+    myWorkspaceRole === 'SUPER_ADMIN' || myWorkspaceRole === 'ADMIN';
 
   // ===== 통계 =====
-  const totalUsers = users.length;
-  const activeUsers = users.filter(u => u.status === 'active').length;
-  const adminCount = users.filter(u => u.role === 'admin').length;
+  // 전체
+  const totalUsers = rows.length;
 
-  // 이번 달 신규
+  // 일반 사용자(관리자 제외 = manager + member)
+  const generalUsers = React.useMemo(
+    () => rows.filter(u => u.role === 'manager' || u.role === 'member').length,
+    [rows]
+  );
+
+  // 관리자 수
+  const adminCount = React.useMemo(
+    () => rows.filter(u => u.role === 'admin').length,
+    [rows]
+  );
+
+  // 이번 달 신규(joinedAt 기준)
   const thisMonthNew = React.useMemo(() => {
     const now = new Date();
     const y = now.getFullYear();
-    const m = now.getMonth();
-    return users.filter(u => {
-      const d = new Date(u.createdAt);
-      return d.getFullYear() === y && d.getMonth() === m;
+    const m = now.getMonth(); // 0-based
+    return rawMembers.filter((mb: any) => {
+      const joined: string | undefined = mb?.joinedAt; // 서버 응답 필드 사용
+      if (!joined) return false;
+      const d = new Date(joined);
+      return (
+        !Number.isNaN(d.getTime()) &&
+        d.getFullYear() === y &&
+        d.getMonth() === m
+      );
     }).length;
-  }, [users]);
+  }, [rawMembers]);
 
-  // 현재 사용자 목록에서 부서 목록 추출
+  // 현재 목록에서 부서 옵션 추출
   const deptOptions = React.useMemo(() => {
     const set = new Set<string>();
-    users.forEach(u => {
+    rows.forEach(u => {
       const d = (u.department ?? '').trim();
       if (d) set.add(d);
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ko'));
-  }, [users]);
+  }, [rows]);
 
   // ===== 검색 + 역할 + 부서 필터 =====
-  const filteredUsers = React.useMemo(() => {
+  const filtered = React.useMemo(() => {
     const query = q.trim().toLowerCase();
-    return users.filter(u => {
-      const roleOk = k === 'all' ? true : u.role === k;
+    return rows.filter(u => {
+      const roleOk =
+        k === 'all'
+          ? true
+          : k === 'admin'
+          ? u.role === 'admin'
+          : u.role === 'member' || u.role === 'manager'; // member 필터에 manager 포함
       const deptOk =
         dept === 'all'
           ? true
@@ -138,42 +185,62 @@ export default function UserManagementPage() {
         (u.title ?? '').toLowerCase().includes(query);
       return roleOk && deptOk && searchOk;
     });
-  }, [users, q, k, dept]);
+  }, [rows, q, k, dept]);
 
-  const rows: UserRowData[] = filteredUsers.map(u => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    department: u.department,
-    title: u.title,
-    role: u.role, // 'admin' | 'member'
-    status: u.status, // 'active' | 'suspended'
-    reservationsCount: u.reservationsCount ?? 0,
-    lastLoginAt: u.lastLoginAt, // ISO
-    avatarUrl: u.avatarUrl,
-  }));
-
-  // ===== 사용자 추가 =====
+  // ===== “사용자 추가” (지금은 로컬 prepend) =====
   const handleAddUser = (nu: NewUser) => {
     const id =
       (typeof crypto !== 'undefined' &&
         'randomUUID' in crypto &&
         crypto.randomUUID()) ||
       `u-${Date.now()}`;
-
-    setUsers(prev => [
+    setRows(prev => [
       {
         id,
         name: nu.name,
         email: nu.email,
-        role: nu.role as UserRole,
-        status: nu.status ?? 'active',
         department: nu.department,
         title: nu.title,
-        createdAt: new Date().toISOString(),
+        role: nu.role as UserRole,
+        status: nu.status ?? 'active',
+        reservationsCount: undefined,
+        lastLoginAt: undefined,
       },
       ...prev,
     ]);
+  };
+
+  const handleDelete = async (targetUserId: string) => {
+    if (!currentId) return;
+    if (String(myUserId) === String(targetUserId)) {
+      alert('본인 계정은 삭제할 수 없습니다.');
+      return;
+    }
+    const ok = confirm(
+      '정말로 이 사용자를 삭제하시겠어요? 이 작업은 되돌릴 수 없습니다.'
+    );
+    if (!ok) return;
+
+    // 낙관적 업데이트
+    const prev = rows;
+    setRows(rows => rows.filter(r => r.id !== targetUserId));
+
+    try {
+      await deleteWorkspaceUser(currentId, targetUserId);
+      // 성공 시: 끝
+    } catch (err: any) {
+      // 실패 시 롤백
+      setRows(prev);
+      const status = err?.response?.status;
+      const serverMsg = err?.response?.data?.message;
+      const msg =
+        status === 401
+          ? serverMsg || '인증 오류(401). 액세스 토큰을 확인하세요.'
+          : status === 403
+          ? serverMsg || '삭제 권한이 없습니다(403).'
+          : serverMsg || err?.message || '삭제 중 오류가 발생했습니다.';
+      alert(msg);
+    }
   };
 
   return (
@@ -201,8 +268,8 @@ export default function UserManagementPage() {
             valueClassName="text-blue-600"
           />
           <StatCard
-            label="활성 사용자"
-            value={activeUsers}
+            label="일반 사용자"
+            value={generalUsers}
             icon={UserCheck}
             valueClassName="text-green-600"
           />
@@ -220,7 +287,7 @@ export default function UserManagementPage() {
           />
         </div>
 
-        {/* 검색 + 역할 필터 + 부서 필터 */}
+        {/* 검색 + 역할 + 부서 필터 */}
         <SearchFilterBar<RoleFilter>
           placeholder="이름, 이메일, 부서, 직급으로 검색..."
           query={q}
@@ -243,14 +310,27 @@ export default function UserManagementPage() {
           </select>
         </SearchFilterBar>
 
-        {/* 사용자 목록 */}
-        <UserTable
-          className="mt-4"
-          users={rows}
-          onEdit={id => console.log('edit', id)}
-          onChangeRole={id => console.log('change role', id)}
-          onDelete={id => console.log('delete', id)}
-        />
+        {/* 오류/로딩/테이블 */}
+        {error ? (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-rose-700">
+            {error}
+          </div>
+        ) : (
+          <UserTable
+            className="mt-4"
+            users={filtered}
+            onEdit={id => console.log('edit', id)}
+            onChangeRole={id => console.log('change role', id)}
+            onDelete={handleDelete}
+            canDelete={canDelete}
+          />
+        )}
+
+        {loading && (
+          <div className="rounded-lg border border-gray-200 bg-white p-6 text-gray-500">
+            사용자 목록을 불러오는 중…
+          </div>
+        )}
       </div>
     </MainLayout>
   );

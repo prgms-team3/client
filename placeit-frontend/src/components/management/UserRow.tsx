@@ -26,9 +26,17 @@ type Props = {
   onEdit?: (id: string) => void;
   onChangeRole?: (id: string) => void;
   onDelete?: (id: string) => void;
+  /** 상위에서 권한 판단: true일 때만 삭제 버튼 노출 */
+  canDelete?: boolean;
 };
 
-export function UserRow({ user, onEdit, onChangeRole, onDelete }: Props) {
+export function UserRow({
+  user,
+  onEdit,
+  onChangeRole,
+  onDelete,
+  canDelete = false,
+}: Props) {
   // 역할 배지 색상
   const roleBadgeClass = {
     admin: 'bg-rose-100 text-rose-700',
@@ -36,7 +44,7 @@ export function UserRow({ user, onEdit, onChangeRole, onDelete }: Props) {
     member: 'bg-green-100 text-green-700',
   }[user.role];
 
-  // 상태 색상 (예: 글자색으로 표시 가능)
+  // 상태 색상
   const statusText =
     user.status === 'active' ? 'text-gray-700' : 'text-gray-400 line-through';
 
@@ -113,12 +121,15 @@ export function UserRow({ user, onEdit, onChangeRole, onDelete }: Props) {
           >
             <UserCog className="h-4 w-4" />
           </button>
-          <button
-            onClick={() => onDelete?.(user.id)}
-            className="rounded-md p-1.5 text-rose-600 hover:bg-rose-50"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+
+          {canDelete && (
+            <button
+              onClick={() => onDelete?.(user.id)}
+              className="rounded-md p-1.5 text-rose-600 hover:bg-rose-50"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </td>
     </tr>
