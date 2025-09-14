@@ -5,25 +5,17 @@ import { fetchMyWorkspaces } from '@/services/workspaces';
 export type WorkspaceLite = { id: string; name: string };
 
 interface WorkspaceState {
-  /** 현재 스토어가 바인딩된 소유자(유저/환경) 키 */
   ownerKey: string | null;
-
-  /** 현재 선택된 워크스페이스 id (이름은 저장하지 않음) */
   currentId: string | null;
-
-  /** 캐시된 워크스페이스 목록 (현재 소유자 전용) */
   list: WorkspaceLite[];
-
-  /** 마지막 페치 시각(ms) */
   lastFetched: number | null;
 
-  /** 유저/환경이 바뀌면 반드시 호출해 바인딩(키가 다르면 캐시 초기화) */
   bindToUser: (ownerKey: string | null) => void;
 
   setCurrent: (id: string | number | null) => void;
   setList: (list: WorkspaceLite[]) => void;
 
-  /** 필요할 때만 백그라운드 갱신(깜빡임 없음) */
+  /** 필요할 때만 백그라운드 갱신 */
   refreshIfStale: (opts?: {
     staleTime?: number;
     signal?: AbortSignal;
@@ -111,7 +103,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       name: 'workspace-storage-v2',
       version: 2,
       migrate: (persisted: any, version) => {
-        // v1 → v2로 오면 안전하게 초기화
         if (version < 2) {
           return {
             ownerKey: null,
@@ -122,7 +113,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
         return persisted as WorkspaceState;
       },
-      // 필요하면 serialize/deserialize로 더 강한 분리도 가능
     }
   )
 );
