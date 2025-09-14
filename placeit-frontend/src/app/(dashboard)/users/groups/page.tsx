@@ -14,62 +14,148 @@ import GroupCard, {
   type GroupCardData,
   type GroupType,
 } from '@/components/management/GroupCard';
+import { api } from '@/lib/axios';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import GroupMemberManagerDialog, {
+  type GroupMember,
+} from '@/components/management/GroupMemberManagerDialog';
 
-type GroupFilter = 'all' | GroupType; // 'project' 제거
+type GroupFilter = 'all' | GroupType;
 
 const GROUP_FILTERS: FilterItem<GroupFilter>[] = [
   { key: 'all', label: '전체' },
-  { key: 'exec', label: '임원진' },
   { key: 'admin', label: '관리자' },
   { key: 'department', label: '부서' },
 ];
+
+// 서버에 타입이 없다면 이름으로 대략 추론
+function inferGroupType(name?: string): GroupType {
+  const n = (name ?? '').toLowerCase();
+  if (n.includes('관리자') || n.includes('admin')) return 'admin';
+  return 'department';
+}
+
+// 서버 ENUM → UI 타입
+function mapApiTypeToUiType(t?: string): GroupType {
+  if (!t) return 'department';
+  return t.toUpperCase() === 'ADMIN' ? 'admin' : 'department';
+}
+
+// API 응답 → 카드 데이터
+function mapToCardData(g: any): GroupCardData {
+  const members = Array.isArray(g?.members) ? g.members : [];
+
+  // 서버가 주는 leaderName/leader 객체를 최우선으로 사용
+  const leaderFromServer =
+    g?.leaderName || g?.leader?.name || g?.leader?.user?.name || undefined;
+
+  // 없으면 기존 멤버 기반 추론(ADMIN → 첫 멤버)
+  const leaderFromMembers =
+    members.find((m: any) => m?.role === 'ADMIN')?.user?.name ??
+    members[0]?.user?.name ??
+    undefined;
+
+  return {
+    id: String(g.id),
+    name: g.name,
+    // 서버 type 있으면 그대로 매핑, 없으면 기존 추론 사용
+    type: g?.type ? mapApiTypeToUiType(g.type) : inferGroupType(g.name),
+    description: g.description ?? undefined,
+    leader: leaderFromServer ?? leaderFromMembers,
+    membersCount: members.length,
+    maxMembers: Number(g.maxMembers ?? 0),
+    createdAt: g.createdAt
+      ? new Date(g.createdAt).toISOString()
+      : new Date().toISOString(),
+  };
+}
 
 export default function GroupManagementPage() {
   const [q, setQ] = React.useState('');
   const [k, setK] = React.useState<GroupFilter>('all');
 
-  const [groups, setGroups] = React.useState<GroupCardData[]>([
-    {
-      id: 'g1',
-      name: '경영진',
-      type: 'exec',
-      description: '회사의 주요 의사결정을 담당하는 임원진 그룹',
-      leader: '이정우',
-      membersCount: 3,
-      maxMembers: 5,
-      createdAt: '2024-01-01T00:00:00Z',
-    },
-    {
-      id: 'g2',
-      name: '개발팀',
-      type: 'department',
-      description: '소프트웨어 개발 및 기술 관련 업무를 담당하는 팀',
-      leader: '박정호',
-      membersCount: 8,
-      maxMembers: 15,
-      createdAt: '2024-01-01T00:00:00Z',
-    },
-    {
-      id: 'g3',
-      name: '마케팅팀',
-      type: 'department',
-      description: '마케팅 전략 수립 및 브랜드 관리를 담당하는 팀',
-      leader: '김민지',
-      membersCount: 6,
-      maxMembers: 10,
-      createdAt: '2024-01-01T00:00:00Z',
-    },
-    {
-      id: 'g4',
-      name: '관리자',
-      type: 'admin',
-      description: '시스템 관리 권한을 가진 특별 그룹',
-      leader: '시스템관리자',
-      membersCount: 2,
-      maxMembers: 3,
-      createdAt: '2024-01-01T00:00:00Z',
-    },
-  ]);
+  const currentId = useWorkspaceStore(s => s.currentId);
+
+  const [groups, setGroups] = React.useState<GroupCardData[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<GroupCardData | null>(null);
+
+  const [memberOpen, setMemberOpen] = React.useState(false);
+  const [memberTarget, setMemberTarget] = React.useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [memberList, setMemberList] = React.useState<GroupMember[]>([]);
+
+  const openMemberManage = async (groupId: string) => {
+    const target = groups.find(g => g.id === groupId);
+    if (!target) return;
+    setMemberTarget({ id: target.id, name: target.name });
+
+    // TODO: 실제 API 호출로 교체하세요 (예시 더미)
+    // const { data } = await api.get(`/groups/${groupId}/members`);
+    // setMemberList(mapMembers(data));
+    setMemberList([
+      { id: 1, name: '이정우', subtitle: '이사', role: 'LEADER' },
+      { id: 2, name: '정민수', subtitle: '부이사', role: 'MEMBER' },
+      { id: 3, name: '한지원', subtitle: '상무', role: 'MEMBER' },
+    ]);
+
+    setMemberOpen(true);
+  };
+
+  // 멤버 제거/추가 콜백 (API 연동 위치)
+  const handleRemoveMember = async (memberId: GroupMember['id']) => {
+    // await api.delete(`/groups/${memberTarget!.id}/members/${memberId}`);
+    setMemberList(prev => prev.filter(m => m.id !== memberId));
+  };
+
+  const handleAddClick = () => {
+    // 여기에 "멤버 추가" 모달/검색/선택 로직을 붙이거나, 라우팅/시트를 열면 됩니다.
+    // 예: setAddSheetOpen(true)
+  };
+
+  // 현재 선택 워크스페이스에 맞는 그룹만 가져오기
+  React.useEffect(() => {
+    let aborted = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const { data } = await api.get('/groups'); // accessToken은 인터셉터로 전제
+        const raw: any[] = Array.isArray(data) ? data : [];
+
+        // 스토어의 currentId(string)와 응답의 workspaceId(number)를 문자열 비교
+        const filtered = currentId
+          ? raw.filter(g => String(g?.workspaceId) === currentId)
+          : [];
+
+        const mapped = filtered.map(mapToCardData);
+        if (aborted) return;
+        setGroups(mapped);
+      } catch (e: any) {
+        if (aborted) return;
+        const status = e?.response?.status;
+        const msg =
+          status === 401
+            ? '인증 오류(401): accessToken을 확인해주세요.'
+            : e?.response?.data?.message ||
+              e?.message ||
+              '그룹을 불러오는 중 오류가 발생했습니다.';
+        setError(msg);
+        console.error('GET /groups failed:', e);
+      } finally {
+        if (!aborted) setLoading(false);
+      }
+    })();
+    return () => {
+      aborted = true;
+    };
+  }, [currentId]);
 
   // 상단 요약
   const totalGroups = groups.length;
@@ -91,43 +177,123 @@ export default function GroupManagementPage() {
     });
   }, [groups, q, k]);
 
-  // AddGroupDialog 연결
-  const handleAddGroup = (ng: NewGroup) => {
-    const id =
-      (typeof crypto !== 'undefined' &&
-        'randomUUID' in crypto &&
-        crypto.randomUUID()) ||
-      `g-${Date.now()}`;
+  // POST /groups
+  const handleAddGroup = async (ng: NewGroup) => {
+    if (!currentId) {
+      const msg = '선택된 워크스페이스가 없습니다.';
+      setError(msg);
+      alert(msg);
+      return;
+    }
 
-    // AddGroupDialog는 type이 'exec' | 'department' | 'admin' 이라고 가정
-    setGroups(prev => [
-      {
-        id,
+    try {
+      const body = {
         name: ng.name,
-        type: ng.type as GroupType,
-        description: ng.description,
-        leader: ng.leader,
-        membersCount: 0,
-        maxMembers: Number(ng.maxMembers ?? 0),
-        createdAt: new Date(ng.createdAt).toISOString(),
-      },
-      ...prev,
-    ]);
+        description: ng.description || '',
+        workspaceId: Number(currentId),
+        maxMembers: Number(ng.maxMembers || 0),
+        leaderName: ng.leader || '',
+        type: ng.type?.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'DEPARTMENT',
+      };
+
+      const res = await api.post('/groups', body);
+      const createdRaw = res?.data?.group ?? res?.data;
+
+      if (String(createdRaw?.workspaceId) === currentId) {
+        const created = mapToCardData(createdRaw);
+        setGroups(prev => [created, ...prev]);
+      }
+    } catch (e: any) {
+      const status = e?.response?.status;
+      const msg =
+        status === 401
+          ? '인증 오류(401): accessToken을 확인해주세요.'
+          : e?.response?.data?.message ||
+            e?.message ||
+            '그룹 생성 중 오류가 발생했습니다.';
+      setError(msg);
+      console.error('POST /groups failed:', e);
+      alert(msg);
+    }
   };
 
-  // 카드 액션 (데모)
-  const handleEdit = (id: string) => alert(`편집: ${id}`);
-  // const handleDuplicate = (id: string) => {
-  //   const g = groups.find(x => x.id === id);
-  //   if (!g) return;
-  //   setGroups(prev => [
-  //     { ...g, id: `copy-${Date.now()}`, name: `${g.name} (복제)` },
-  //     ...prev,
-  //   ]);
-  // };
-  const handleDelete = (id: string) =>
+  // 편집 다이얼로그 오픈
+  const handleEdit = (id: string) => {
+    const target = groups.find(g => g.id === id);
+    if (!target) return;
+    setEditing(target);
+    setEditOpen(true);
+  };
+
+  // PATCH /groups/{id}
+  const handleUpdateGroup = async (form: {
+    name: string;
+    description?: string;
+    maxMembers?: number;
+    type?: GroupType;
+    leader?: string;
+  }) => {
+    if (!editing) return;
+    try {
+      const body = {
+        name: form.name,
+        description: form.description ?? '',
+        maxMembers: Number(form.maxMembers ?? 0),
+        leaderName: form.leader ?? '',
+        type: (form.type?.toUpperCase() === 'ADMIN'
+          ? 'ADMIN'
+          : 'DEPARTMENT') as 'ADMIN' | 'DEPARTMENT',
+      };
+
+      const res = await api.patch(`/groups/${editing.id}`, body);
+      const updatedRaw = res?.data?.group ?? res?.data;
+      const updated = mapToCardData({
+        ...updatedRaw,
+        leaderName: updatedRaw?.leaderName ?? body.leaderName,
+        type: updatedRaw?.type ?? body.type,
+      });
+
+      setGroups(prev => prev.map(g => (g.id === updated.id ? updated : g)));
+      setEditOpen(false);
+      setEditing(null);
+    } catch (e: any) {
+      const status = e?.response?.status;
+      const msg =
+        status === 401
+          ? '인증 오류(401): accessToken을 확인해주세요.'
+          : e?.response?.data?.message ||
+            e?.message ||
+            '그룹 수정 중 오류가 발생했습니다.';
+      setError(msg);
+      console.error('PATCH /groups/{id} failed:', e);
+      alert(msg);
+    }
+  };
+
+  // DELETE /groups/{id}
+  const handleDelete = async (id: string) => {
+    if (!id) return;
+    const ok = window.confirm('해당 그룹을 삭제할까요?');
+    if (!ok) return;
+
+    const snapshot = groups;
     setGroups(prev => prev.filter(g => g.id !== id));
-  const handleManageMembers = (id: string) => alert(`멤버 관리 이동: ${id}`);
+    try {
+      await api.delete(`/groups/${id}`);
+    } catch (e: any) {
+      setGroups(snapshot);
+      const status = e?.response?.status;
+      const msg =
+        status === 401
+          ? '인증 오류(401): accessToken을 확인해주세요.'
+          : e?.response?.data?.message ||
+            e?.message ||
+            '그룹 삭제 중 오류가 발생했습니다.';
+      setError(msg);
+      console.error('DELETE /groups/{id} failed:', e);
+      alert(msg);
+    }
+  };
 
   return (
     <MainLayout activePage="group-management">
@@ -140,7 +306,8 @@ export default function GroupManagementPage() {
               사용자 그룹을 관리하고 권한을 설정하세요
             </p>
           </div>
-          <AddGroupDialog onAdd={handleAddGroup} />
+          {/* 생성용 다이얼로그 */}
+          <AddGroupDialog mode="create" onAdd={handleAddGroup} />
         </div>
 
         {/* 상단 요약 카드 */}
@@ -181,19 +348,58 @@ export default function GroupManagementPage() {
           onChange={setK}
         />
 
-        {/* 카드 리스트 */}
+        {error && <div className="text-sm text-rose-600">{error}</div>}
+
+        {/* 카드 리스트 (UI 변경 없음) */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map(g => (
-            <GroupCard
-              key={g.id}
-              data={g}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onManageMembers={handleManageMembers}
-            />
-          ))}
+          {loading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-48 animate-pulse rounded-2xl border border-gray-200 bg-gray-50"
+                />
+              ))
+            : filtered.map(g => (
+                <GroupCard
+                  key={g.id}
+                  data={g}
+                  onEdit={() => handleEdit(g.id)}
+                  onDelete={() => handleDelete(g.id)}
+                  onManageMembers={() => openMemberManage(g.id)}
+                />
+              ))}
         </div>
       </div>
+
+      {/* 편집 다이얼로그: AddGroupDialog 재활용 */}
+      <AddGroupDialog
+        mode="edit"
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        initial={
+          editing
+            ? {
+                name: editing.name,
+                description: editing.description,
+                type: editing.type,
+                leader: editing.leader,
+                maxMembers: editing.maxMembers,
+                createdAt: editing.createdAt,
+              }
+            : undefined
+        }
+        onSubmit={handleUpdateGroup}
+      />
+
+      {/* 그룹 멤버 편집 다이얼로그 */}
+      <GroupMemberManagerDialog
+        open={memberOpen}
+        onOpenChange={setMemberOpen}
+        groupName={memberTarget?.name ?? ''}
+        groupId={memberTarget?.id ?? ''}
+        onRemove={handleRemoveMember}
+        onAddClick={handleAddClick}
+      />
     </MainLayout>
   );
 }

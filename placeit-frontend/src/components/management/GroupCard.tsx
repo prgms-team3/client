@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-export type GroupType = 'exec' | 'admin' | 'department';
+export type GroupType = 'admin' | 'department';
 
 export type GroupCardData = {
   id: string;
@@ -28,13 +28,6 @@ type Props = {
 };
 
 const TYPE_META = {
-  exec: {
-    label: '임원진',
-    Icon: Crown,
-    iconBg: 'bg-violet-100',
-    iconFg: 'text-violet-600',
-    badge: 'bg-violet-100 text-violet-700 hover:bg-violet-100',
-  },
   department: {
     label: '부서',
     Icon: Building2,
