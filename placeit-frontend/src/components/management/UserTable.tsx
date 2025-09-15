@@ -10,6 +10,8 @@ type Props = {
   onDelete?: (id: string) => void;
   className?: string;
   canDelete?: boolean;
+  myUserId?: string;
+  isAdmin?: boolean;
 };
 
 export default function UserTable({
@@ -19,6 +21,8 @@ export default function UserTable({
   onDelete,
   className,
   canDelete = false,
+  myUserId,
+  isAdmin,
 }: Props) {
   return (
     <div className={className}>
@@ -33,7 +37,7 @@ export default function UserTable({
                 예약 건수
               </th>
               <th className="w-[16%] px-4 py-3 font-medium">마지막 로그인</th>
-              <th className="w-[8%] px-4 py-3 font-medium">액션</th>
+              <th className="w-[8%] px-4 py-3 font-medium"></th>
             </tr>
           </thead>
 
@@ -56,6 +60,8 @@ export default function UserTable({
                   onChangeRole={onChangeRole}
                   onDelete={onDelete}
                   canDelete={canDelete}
+                  myUserId={myUserId}
+                  isAdmin={isAdmin}
                 />
               ))
             )}

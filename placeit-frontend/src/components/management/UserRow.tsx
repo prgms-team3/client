@@ -26,8 +26,9 @@ type Props = {
   onEdit?: (id: string) => void;
   onChangeRole?: (id: string) => void;
   onDelete?: (id: string) => void;
-  /** 상위에서 권한 판단: true일 때만 삭제 버튼 노출 */
   canDelete?: boolean;
+  myUserId?: string;
+  isAdmin?: boolean;
 };
 
 export function UserRow({
@@ -36,6 +37,8 @@ export function UserRow({
   onChangeRole,
   onDelete,
   canDelete = false,
+  myUserId,
+  isAdmin,
 }: Props) {
   // 역할 배지 색상
   const roleBadgeClass = {
@@ -47,6 +50,9 @@ export function UserRow({
   // 상태 색상
   const statusText =
     user.status === 'active' ? 'text-gray-700' : 'text-gray-400 line-through';
+
+  // 수정 버튼 노출 여부 판단용
+  const isMe = myUserId && String(myUserId) === String(user.id);
 
   return (
     <tr className="border-b last:border-0">
@@ -108,20 +114,36 @@ export function UserRow({
 
       {/* 액션 */}
       <td className="px-4 py-3">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onEdit?.(user.id)}
-            className="rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => onChangeRole?.(user.id)}
-            className="rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-          >
-            <UserCog className="h-4 w-4" />
-          </button>
+        <div className="flex items-center justify-end gap-1.5">
+          {/* 연필 (내 행에서만 보임) */}
+          {isMe ? (
+            <button
+              onClick={() => onEdit?.(user.id)}
+              className="rounded-md p-1.5 text-blue-600 hover:bg-blue-50"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          ) : (
+            <span className="invisible rounded-md p-1.5">
+              <Pencil className="h-4 w-4" />
+            </span>
+          )}
 
+          {/* UserCog (관리자만 보임) */}
+          {isAdmin ? (
+            <button
+              onClick={() => onChangeRole?.(user.id)}
+              className="rounded-md p-1.5 text-gray-600 hover:bg-gray-50"
+            >
+              <UserCog className="h-4 w-4" />
+            </button>
+          ) : (
+            <span className="invisible rounded-md p-1.5">
+              <UserCog className="h-4 w-4" />
+            </span>
+          )}
+
+          {/* 삭제 */}
           {canDelete && (
             <button
               onClick={() => onDelete?.(user.id)}

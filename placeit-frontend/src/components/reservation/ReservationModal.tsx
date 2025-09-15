@@ -247,7 +247,7 @@ export function ReservationModal({
                 name="attendees"
                 value={formData.attendees}
                 onChange={handleInputChange}
-                placeholder="참석자 이름을 입력하세요 (쉼표로 구분)"
+                placeholder="참석자 이름을 입력하세요"
                 className="mt-1"
               />
             </div>

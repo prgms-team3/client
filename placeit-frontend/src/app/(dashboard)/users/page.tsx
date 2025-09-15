@@ -13,14 +13,16 @@ import AddUserDialog, {
 import UserTable from '@/components/management/UserTable';
 import type { UserRowData } from '@/components/management/UserRow';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useUserStore } from '@/stores/userStore';
 import {
   fetchWorkspaceUsers,
   type ApiWorkspaceUser,
+  deleteWorkspaceUser,
 } from '@/services/workspaceUsers';
-import { useUserStore } from '@/stores/userStore';
-import { deleteWorkspaceUser } from '@/services/workspaceUsers';
+import { api } from '@/lib/axios';
+import EditUserDialog from '@/components/management/EditUserDialog';
 
-// 필터 타입
+// ===== 타입/필터 =====
 type UserStatus = 'active' | 'suspended';
 type UserRole = 'admin' | 'manager' | 'member';
 type RoleFilter = 'all' | Extract<UserRole, 'admin' | 'member'>;
@@ -48,9 +50,9 @@ function mapApiToRow(u: ApiWorkspaceUser): UserRowData {
     name: u.user.name,
     email: u.user.email,
     department: u.department ?? undefined,
-    title: u.position ?? undefined,
-    role, // 'admin' | 'manager' | 'member'
-    status, // 'active' | 'suspended'
+    title: u.position ?? undefined, // UI 표기는 title로 사용
+    role,
+    status,
     reservationsCount: undefined,
     lastLoginAt: u.user.updatedAt || u.updatedAt || undefined,
     avatarUrl: undefined,
@@ -109,40 +111,34 @@ export default function UserManagementPage() {
     };
   }, [currentId]);
 
-  // 내 워크스페이스 역할을 현재 목록에서 찾기
+  // 내 워크스페이스 역할
   const myWorkspaceRole = React.useMemo(() => {
     if (!myUserId) return null;
     const me = rawMembers.find(m => String(m.user.id) === String(myUserId));
-    return me?.role ?? null; // 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'MEMBER' | undefined
+    return me?.role ?? null;
   }, [rawMembers, myUserId]);
 
-  // 관리자만 삭제 가능 (SUPER_ADMIN/ADMIN)
+  const isAdmin =
+    myWorkspaceRole === 'SUPER_ADMIN' || myWorkspaceRole === 'ADMIN';
   const canDelete =
     myWorkspaceRole === 'SUPER_ADMIN' || myWorkspaceRole === 'ADMIN';
 
   // ===== 통계 =====
-  // 전체
   const totalUsers = rows.length;
-
-  // 일반 사용자(관리자 제외 = manager + member)
   const generalUsers = React.useMemo(
     () => rows.filter(u => u.role === 'manager' || u.role === 'member').length,
     [rows]
   );
-
-  // 관리자 수
   const adminCount = React.useMemo(
     () => rows.filter(u => u.role === 'admin').length,
     [rows]
   );
-
-  // 이번 달 신규(joinedAt 기준)
   const thisMonthNew = React.useMemo(() => {
     const now = new Date();
     const y = now.getFullYear();
-    const m = now.getMonth(); // 0-based
+    const m = now.getMonth();
     return rawMembers.filter((mb: any) => {
-      const joined: string | undefined = mb?.joinedAt; // 서버 응답 필드 사용
+      const joined: string | undefined = mb?.joinedAt;
       if (!joined) return false;
       const d = new Date(joined);
       return (
@@ -153,7 +149,6 @@ export default function UserManagementPage() {
     }).length;
   }, [rawMembers]);
 
-  // 현재 목록에서 부서 옵션 추출
   const deptOptions = React.useMemo(() => {
     const set = new Set<string>();
     rows.forEach(u => {
@@ -163,7 +158,6 @@ export default function UserManagementPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ko'));
   }, [rows]);
 
-  // ===== 검색 + 역할 + 부서 필터 =====
   const filtered = React.useMemo(() => {
     const query = q.trim().toLowerCase();
     return rows.filter(u => {
@@ -172,7 +166,7 @@ export default function UserManagementPage() {
           ? true
           : k === 'admin'
           ? u.role === 'admin'
-          : u.role === 'member' || u.role === 'manager'; // member 필터에 manager 포함
+          : u.role === 'member' || u.role === 'manager';
       const deptOk =
         dept === 'all'
           ? true
@@ -187,7 +181,7 @@ export default function UserManagementPage() {
     });
   }, [rows, q, k, dept]);
 
-  // ===== “사용자 추가” (지금은 로컬 prepend) =====
+  // ===== “사용자 추가” (로컬 prepend, 기존 그대로 유지) =====
   const handleAddUser = (nu: NewUser) => {
     const id =
       (typeof crypto !== 'undefined' &&
@@ -210,6 +204,7 @@ export default function UserManagementPage() {
     ]);
   };
 
+  // ===== 삭제(기존 유지) =====
   const handleDelete = async (targetUserId: string) => {
     if (!currentId) return;
     if (String(myUserId) === String(targetUserId)) {
@@ -221,15 +216,11 @@ export default function UserManagementPage() {
     );
     if (!ok) return;
 
-    // 낙관적 업데이트
     const prev = rows;
     setRows(rows => rows.filter(r => r.id !== targetUserId));
-
     try {
       await deleteWorkspaceUser(currentId, targetUserId);
-      // 성공 시: 끝
     } catch (err: any) {
-      // 실패 시 롤백
       setRows(prev);
       const status = err?.response?.status;
       const serverMsg = err?.response?.data?.message;
@@ -239,6 +230,194 @@ export default function UserManagementPage() {
           : status === 403
           ? serverMsg || '삭제 권한이 없습니다(403).'
           : serverMsg || err?.message || '삭제 중 오류가 발생했습니다.';
+      alert(msg);
+    }
+  };
+
+  // ===== 내 정보 수정 다이얼로그 상태 =====
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [editingRow, setEditingRow] = React.useState<UserRowData | null>(null);
+
+  // 행의 연필 버튼 클릭 시
+  const handleEditClick = (id: string) => {
+    const target = rows.find(r => r.id === id);
+    if (!target) return;
+    // 요구사항: 내 정보만 수정
+    if (String(id) !== String(myUserId)) {
+      alert('내 정보만 수정할 수 있습니다.');
+      return;
+    }
+    setEditingRow(target);
+    setEditOpen(true);
+  };
+
+  // PATCH /workspaces/{id}/me
+  const submitEditMe = async (payload: {
+    department?: string;
+    position?: string;
+  }) => {
+    if (!currentId || !myUserId)
+      throw new Error('워크스페이스/사용자 정보가 없습니다.');
+
+    // ── 1) 업데이트 전 내 기존 부서 기억
+    const meBefore = rows.find(r => String(r.id) === String(myUserId));
+    const prevDept = (meBefore?.department ?? '').trim();
+
+    // ── 2) 서버 PATCH
+    await api.patch(`/workspaces/${currentId}/me`, payload);
+
+    // ── 3) 로컬 상태 갱신 (기존 코드 유지)
+    setRows(prev =>
+      prev.map(r =>
+        String(r.id) === String(myUserId)
+          ? {
+              ...r,
+              department: payload.department ?? r.department,
+              title: payload.position ?? r.title, // UI에서 title로 표기
+            }
+          : r
+      )
+    );
+    setRawMembers(prev =>
+      prev.map(m =>
+        String(m.user.id) === String(myUserId)
+          ? {
+              ...m,
+              department: payload.department ?? m.department,
+              position: payload.position ?? m.position,
+            }
+          : m
+      )
+    );
+
+    // ── 4) 부서 변경에 따른 그룹 가입/탈퇴 동기화
+    const nextDept = (payload.department ?? prevDept ?? '').trim();
+
+    // 변경 없음이면 종료
+    if (!currentId || prevDept.toLowerCase() === nextDept.toLowerCase()) return;
+
+    try {
+      // (a) 현재 워크스페이스의 그룹 목록을 불러와 "부서 그룹"만 추려냄
+      const { data } = await api.get('/groups'); // 인터셉터로 토큰 부착 가정
+      const allGroups: any[] = Array.isArray(data) ? data : [];
+      const inWorkspace = allGroups.filter(
+        g => String(g?.workspaceId) === String(currentId)
+      );
+
+      // 서버 타입이 있다면 'DEPARTMENT'로, 없으면 이름으로도 추정 가능 (기존 그룹페이지 로직과 동일)  :contentReference[oaicite:3]{index=3}
+      const isDeptGroup = (g: any) =>
+        (g?.type ?? '').toUpperCase() === 'DEPARTMENT' ||
+        // 백엔드가 type을 안줄 수도 있는 경우를 대비한 안전장치
+        !g?.type;
+
+      const deptGroups = inWorkspace.filter(isDeptGroup);
+
+      const findByName = (name?: string) => {
+        const key = (name ?? '').trim().toLowerCase();
+        if (!key) return undefined;
+        return deptGroups.find(
+          (g: any) =>
+            String(g?.name ?? '')
+              .trim()
+              .toLowerCase() === key
+        );
+      };
+
+      const prevGroup = findByName(prevDept);
+      const nextGroup = findByName(nextDept);
+
+      // (b) 이전 부서 그룹에서 탈퇴
+      if (prevDept && prevGroup?.id) {
+        try {
+          await api.delete(`/groups/${prevGroup.id}/leave`);
+        } catch (e: any) {
+          // 경고만 띄우고 계속 진행
+          console.warn('그룹 탈퇴 실패:', e);
+        }
+      }
+
+      // (c) 새 부서 그룹에 가입
+      if (nextDept && nextGroup?.id) {
+        try {
+          await api.post(`/groups/${nextGroup.id}/join`);
+        } catch (e: any) {
+          console.warn('그룹 가입 실패:', e);
+        }
+      }
+      // 그룹이 없으면(=nextGroup 미존재) 아무것도 하지 않음. 필요 시 "부서명과 동일한 그룹이 없습니다" 토스트로 안내 가능.
+    } catch (e) {
+      console.warn('부서-그룹 동기화 실패:', e);
+      // PATCH는 이미 성공했고, 그룹 동기화만 실패해도 사용자 정보는 갱신되었으니 치명적 에러로 막지 않음.
+    }
+  };
+
+  // 내 워크스페이스 역할 계산
+  const handleChangeRole = async (targetUserId: string) => {
+    if (!currentId) return;
+
+    // 관리자만 가능
+    const amIAdmin =
+      myWorkspaceRole === 'SUPER_ADMIN' || myWorkspaceRole === 'ADMIN';
+    if (!amIAdmin) {
+      alert('역할 변경 권한이 없습니다.');
+      return;
+    }
+
+    // 본인 변경 금지
+    if (String(targetUserId) === String(myUserId)) {
+      alert('본인 역할은 변경할 수 없습니다.');
+      return;
+    }
+
+    // 현재 대상의 UI 역할 확인
+    const target = rows.find(r => String(r.id) === String(targetUserId));
+    if (!target) return;
+
+    // ADMIN/MEMBER 토글 (manager는 일반 사용자로 취급)
+    const nextServerRole = target.role === 'admin' ? 'MEMBER' : 'ADMIN';
+    const confirmMsg =
+      nextServerRole === 'ADMIN'
+        ? '이 사용자를 관리자(ADMIN)로 승진시키겠습니까?'
+        : '이 사용자를 일반 사용자(MEMBER)로 강등시키겠습니까?';
+    if (!confirm(confirmMsg)) return;
+
+    // 낙관적 업데이트 준비
+    const prevRows = rows;
+    const prevRaw = rawMembers;
+
+    // UI 즉시 반영
+    setRows(prev =>
+      prev.map(r =>
+        String(r.id) === String(targetUserId)
+          ? { ...r, role: nextServerRole === 'ADMIN' ? 'admin' : 'member' }
+          : r
+      )
+    );
+    setRawMembers(prev =>
+      prev.map(m =>
+        String(m.user.id) === String(targetUserId)
+          ? { ...m, role: nextServerRole } // 'ADMIN' | 'MEMBER'
+          : m
+      )
+    );
+
+    try {
+      await api.patch(`/workspaces/${currentId}/users/role`, {
+        userId: Number(targetUserId),
+        role: nextServerRole, // 'ADMIN' | 'MEMBER'
+      });
+    } catch (err: any) {
+      // 실패 시 롤백
+      setRows(prevRows);
+      setRawMembers(prevRaw);
+      const status = err?.response?.status;
+      const serverMsg = err?.response?.data?.message;
+      const msg =
+        status === 401
+          ? serverMsg || '인증 오류(401). 액세스 토큰을 확인하세요.'
+          : status === 403
+          ? serverMsg || '역할 변경 권한이 없습니다(403).'
+          : serverMsg || err?.message || '역할 변경 중 오류가 발생했습니다.';
       alert(msg);
     }
   };
@@ -319,10 +498,12 @@ export default function UserManagementPage() {
           <UserTable
             className="mt-4"
             users={filtered}
-            onEdit={id => console.log('edit', id)}
-            onChangeRole={id => console.log('change role', id)}
+            onEdit={handleEditClick}
+            onChangeRole={handleChangeRole}
             onDelete={handleDelete}
             canDelete={canDelete}
+            myUserId={myUserId ? String(myUserId) : undefined}
+            isAdmin={isAdmin}
           />
         )}
 
@@ -330,6 +511,21 @@ export default function UserManagementPage() {
           <div className="rounded-lg border border-gray-200 bg-white p-6 text-gray-500">
             사용자 목록을 불러오는 중…
           </div>
+        )}
+
+        {/* 내 정보 수정 다이얼로그 */}
+        {editingRow && (
+          <EditUserDialog
+            open={editOpen}
+            onOpenChange={setEditOpen}
+            initial={{
+              name: editingRow.name,
+              email: editingRow.email,
+              department: editingRow.department ?? '',
+              position: editingRow.title ?? '', // UI에서 title로 들고 있었던 값을 서버 position으로 매핑
+            }}
+            onSubmit={submitEditMe}
+          />
         )}
       </div>
     </MainLayout>

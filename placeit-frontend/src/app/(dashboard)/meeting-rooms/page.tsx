@@ -155,7 +155,6 @@ export default function MeetingRoomsPage() {
         name: form.name,
         description: form.description || '',
         location: form.location || '',
-        size: form.size ?? 0,
         capacity: form.capacity,
         requiresApproval: form.requiresApproval,
         amenities: form.amenities,
@@ -289,7 +288,6 @@ export default function MeetingRoomsPage() {
         name: editTarget.name,
         description: editTarget.description,
         location: editTarget.location,
-        size: typeof editTarget.size === 'number' ? editTarget.size : 0,
         capacity: editTarget.capacity,
         requiresApproval:
           editTarget.approvalPolicy === 'approval_required' ? true : false,
