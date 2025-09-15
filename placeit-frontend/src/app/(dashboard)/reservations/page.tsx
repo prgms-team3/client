@@ -213,7 +213,7 @@ export default function ReservationsPage() {
 
   return (
     <MainLayout activePage="reservations">
-      <div className="p-4 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 space-y-6 mx-auto">
         {/* 에러 메시지 */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -347,32 +347,7 @@ export default function ReservationsPage() {
 
               {/* 날짜 네비게이션 */}
               <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-4 py-2.5 h-10">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 hover:bg-gray-100 rounded-md"
-                  onClick={() => {
-                    if (selectedDate) {
-                      const newDate = new Date(selectedDate);
-                      newDate.setMonth(newDate.getMonth() - 1);
-                      setSelectedDate(newDate);
-                    }
-                  }}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <div className="flex items-center gap-2 px-3 min-w-[120px] justify-center">
-                  <span className="text-sm font-medium text-gray-900">
-                    {selectedDate instanceof Date
-                      ? `${selectedDate.getMonth() + 1}월`
-                      : `${new Date().getMonth() + 1}월`}
-                  </span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {selectedDate instanceof Date
-                      ? `${selectedDate.getFullYear()}년`
-                      : `${new Date().getFullYear()}년`}
-                  </span>
-                </div>
+                {/* 이전 버튼 */}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -380,7 +355,73 @@ export default function ReservationsPage() {
                   onClick={() => {
                     if (selectedDate instanceof Date) {
                       const newDate = new Date(selectedDate);
-                      newDate.setMonth(newDate.getMonth() + 1);
+                      if (currentView === 'day')
+                        newDate.setDate(newDate.getDate() - 1);
+                      if (currentView === 'week')
+                        newDate.setDate(newDate.getDate() - 7);
+                      if (currentView === 'month')
+                        newDate.setMonth(newDate.getMonth() - 1);
+                      setSelectedDate(newDate);
+                    }
+                  }}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+
+                {/* 날짜 표시 */}
+                <div className="flex items-center gap-2 px-3 min-w-[160px] justify-center">
+                  {selectedDate instanceof Date && (
+                    <>
+                      {currentView === 'day' && (
+                        <span className="text-sm font-medium text-gray-900">
+                          {selectedDate.toLocaleDateString('ko-KR', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            weekday: 'long',
+                          })}
+                        </span>
+                      )}
+                      {currentView === 'week' &&
+                        (() => {
+                          const weekStart = new Date(selectedDate);
+                          weekStart.setDate(
+                            selectedDate.getDate() - selectedDate.getDay()
+                          );
+                          const weekEnd = new Date(weekStart);
+                          weekEnd.setDate(weekStart.getDate() + 6);
+                          return (
+                            <span className="text-sm font-medium text-gray-900">
+                              {weekStart.getMonth() + 1}월 {weekStart.getDate()}
+                              일 ~ {weekEnd.getMonth() + 1}월{' '}
+                              {weekEnd.getDate()}일
+                            </span>
+                          );
+                        })()}
+                      {currentView === 'month' && (
+                        <span className="text-sm font-medium text-gray-900">
+                          {selectedDate.getFullYear()}년{' '}
+                          {selectedDate.getMonth() + 1}월
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* 다음 버튼 */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 hover:bg-gray-100 rounded-md"
+                  onClick={() => {
+                    if (selectedDate instanceof Date) {
+                      const newDate = new Date(selectedDate);
+                      if (currentView === 'day')
+                        newDate.setDate(newDate.getDate() + 1);
+                      if (currentView === 'week')
+                        newDate.setDate(newDate.getDate() + 7);
+                      if (currentView === 'month')
+                        newDate.setMonth(newDate.getMonth() + 1);
                       setSelectedDate(newDate);
                     }
                   }}
@@ -612,18 +653,33 @@ export default function ReservationsPage() {
                         const currentDayDate = new Date(weekStart);
                         currentDayDate.setDate(weekStart.getDate() + index);
 
+                        // 오늘 00:00 기준
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const dayStart = new Date(currentDayDate);
+                        dayStart.setHours(0, 0, 0, 0);
+
+                        const isToday = dayStart.getTime() === today.getTime();
+                        const isPastDay = dayStart.getTime() < today.getTime();
+
                         return (
                           <div
                             key={day}
-                            className="p-3 text-center border-r border-gray-200 last:border-r-0 cursor-pointer hover:bg-gray-100"
+                            className={`p-3 text-center border-r border-gray-200 last:border-r-0 rounded-md
+        ${isToday ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' : ''}
+        ${
+          isPastDay
+            ? 'opacity-50 cursor-not-allowed'
+            : 'cursor-pointer hover:bg-gray-100'
+        }`}
                             onClick={() => {
-                              setSelectedDate(currentDayDate);
-                              setShowReservationModal(true);
+                              if (!isPastDay) {
+                                setSelectedDate(currentDayDate);
+                                setShowReservationModal(true);
+                              }
                             }}
                           >
-                            <div className="text-sm font-medium text-gray-900">
-                              {day}
-                            </div>
+                            <div className="text-sm font-medium">{day}</div>
                             <div className="text-xs text-gray-500">
                               {currentDayDate.getDate()}
                             </div>
@@ -643,7 +699,7 @@ export default function ReservationsPage() {
                         return (
                           <div
                             key={i}
-                            className="h-16 border-b border-gray-200 flex items-center justify-center text-xs text-gray-500"
+                            className="h-12 border-b border-gray-200 flex items-center justify-center text-xs text-gray-500"
                           >
                             {`${hour.toString().padStart(2, '0')}:${minute}`}
                           </div>
@@ -660,6 +716,14 @@ export default function ReservationsPage() {
                       const currentDayDate = new Date(weekStart);
                       currentDayDate.setDate(weekStart.getDate() + dayIndex);
 
+                      const dayStart = new Date(currentDayDate);
+                      dayStart.setHours(0, 0, 0, 0);
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+
+                      const isPastDay = dayStart.getTime() < today.getTime();
+                      const isToday = dayStart.getTime() === today.getTime();
+
                       const currentDayDateStr = `${currentDayDate.getFullYear()}-${String(
                         currentDayDate.getMonth() + 1
                       ).padStart(2, '0')}-${String(
@@ -673,7 +737,10 @@ export default function ReservationsPage() {
                       return (
                         <div
                           key={dayIndex}
-                          className="border-r border-gray-200 last:border-r-0"
+                          className={`border-r border-gray-200 last:border-r-0
+        ${isToday ? 'bg-blue-50/30' : ''} ${
+                            isPastDay ? 'opacity-50 pointer-events-none' : ''
+                          }`}
                         >
                           {Array.from({ length: 17 }, (_, timeIndex) => {
                             const hour = Math.floor(timeIndex / 2) + 9;
@@ -682,7 +749,6 @@ export default function ReservationsPage() {
                               .toString()
                               .padStart(2, '0')}:${minute}`;
 
-                            // 해당 시간에 예약이 있는지 확인
                             const reservation = dayReservations.find(
                               r => r.time === timeStr
                             );
@@ -690,20 +756,17 @@ export default function ReservationsPage() {
                             return (
                               <div
                                 key={timeIndex}
-                                className="h-16 border-b border-gray-200 p-1 relative cursor-pointer hover:bg-gray-50"
+                                className={`h-12 border-b border-gray-200 p-1 relative
+              ${isPastDay ? '' : 'cursor-pointer hover:bg-gray-50'}`}
                                 onClick={() => {
-                                  setSelectedDate(currentDayDate);
-                                  setShowReservationModal(true);
+                                  if (!isPastDay) {
+                                    setSelectedDate(currentDayDate);
+                                    setShowReservationModal(true);
+                                  }
                                 }}
                               >
                                 {reservation && (
-                                  <div
-                                    className={`absolute inset-1 rounded p-1 text-xs ${
-                                      reservation.title.includes('주간 팀 미팅')
-                                        ? 'bg-blue-100 text-blue-800'
-                                        : 'bg-gray-100 text-gray-600'
-                                    }`}
-                                  >
+                                  <div className="absolute inset-1 rounded p-1 text-xs bg-gray-100 text-gray-600">
                                     <div className="font-medium truncate">
                                       {reservation.title}
                                     </div>
@@ -730,13 +793,13 @@ export default function ReservationsPage() {
           {/* 월 뷰 */}
           <TabsContent value="month" className="space-y-4 w-full">
             {/* Calendar */}
-            <div className="bg-white border border-gray-200 rounded-lg w-full p-6">
+            <div className="bg-white border border-gray-200 rounded-lg max-w-4xl mx-auto p-4">
               <div className="[&_.rdp-month_caption]:!hidden [&_.rdp-caption]:!hidden [&_.rdp-caption_label]:!hidden">
                 <Calendar
                   mode="single"
                   selected={selectedDate || undefined}
                   onSelect={handleDateSelect}
-                  className="w-full [--cell-size:9rem]"
+                  className="w-full [--cell-size:4rem]"
                   showOutsideDays={false}
                   captionLayout="label"
                   fromYear={2024}

@@ -7,8 +7,30 @@ import {
   CardDescription,
   CardContent,
 } from '@/components/ui/card';
+import {
+  Clipboard,
+  Wifi,
+  Monitor,
+  Volume2,
+  Mic,
+  AirVent,
+  Presentation,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Users, Building } from 'lucide-react';
+
+const AMENITY_MAP: Record<
+  string,
+  { label: string; icon: React.ComponentType<{ className?: string }> }
+> = {
+  projector: { label: '프로젝터', icon: Presentation },
+  microphone: { label: '마이크', icon: Mic },
+  aircon: { label: '에어컨', icon: AirVent },
+  monitor: { label: '모니터', icon: Monitor },
+  wifi: { label: 'Wi-Fi', icon: Wifi },
+  whiteboard: { label: '화이트보드', icon: Clipboard },
+  speaker: { label: '스피커', icon: Volume2 },
+};
 
 interface MeetingRoomCardProps {
   name: string;
@@ -144,16 +166,22 @@ export function MeetingRoomCard({
             <span className="text-sm font-medium text-gray-600">
               제공 기능:
             </span>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {features.map((feature, index) => (
-                <Badge
-                  key={index}
-                  variant="secondary"
-                  className="text-xs bg-gray-100 text-gray-700"
-                >
-                  {feature}
-                </Badge>
-              ))}
+            <div className="flex flex-wrap gap-2 mt-1">
+              {features.map((feature, index) => {
+                const mapped = AMENITY_MAP[feature];
+                if (!mapped) return null;
+                const Icon = mapped.icon;
+                return (
+                  <Badge
+                    key={index}
+                    variant="secondary"
+                    className="flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2 py-1"
+                  >
+                    <Icon className="w-3 h-3" />
+                    {mapped.label}
+                  </Badge>
+                );
+              })}
             </div>
           </div>
 

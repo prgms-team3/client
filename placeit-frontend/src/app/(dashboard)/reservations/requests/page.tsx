@@ -15,6 +15,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { StatCard } from '@/components/management/StatCard';
 
 const sampleRequests = [
   {
@@ -193,7 +194,7 @@ export default function ReservationRequestsPage() {
 
   return (
     <MainLayout activePage="reservation-requests">
-      <div className="p-6 space-y-8 max-w-7xl mx-auto">
+      <div className="p-6 space-y-8 mx-auto">
         {/* 헤더 */}
         <div className="flex items-center justify-between">
           <div>
@@ -208,77 +209,46 @@ export default function ReservationRequestsPage() {
 
         {/* 통계 카드 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">대기중</p>
-                  <p className="text-2xl font-bold text-yellow-600">
-                    {pendingCount}
-                  </p>
-                </div>
-                <AlertCircle className="w-8 h-8 text-yellow-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">승인됨</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {approvedCount}
-                  </p>
-                </div>
-                <Check className="w-8 h-8 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">거부됨</p>
-                  <p className="text-2xl font-bold text-red-600">
-                    {rejectedCount}
-                  </p>
-                </div>
-                <X className="w-8 h-8 text-red-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">전체</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {requests.length}
-                  </p>
-                </div>
-                <Calendar className="w-8 h-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
+          <StatCard
+            label="전체"
+            value={requests.length}
+            icon={Calendar}
+            valueClassName="text-blue-600"
+          />
+          <StatCard
+            label="대기중"
+            value={pendingCount}
+            icon={AlertCircle}
+            valueClassName="text-yellow-600"
+          />
+          <StatCard
+            label="승인됨"
+            value={approvedCount}
+            icon={Check}
+            valueClassName="text-green-600"
+          />
+          <StatCard
+            label="거부됨"
+            value={rejectedCount}
+            icon={X}
+            valueClassName="text-red-600"
+          />
         </div>
 
         {/* 필터 및 검색 */}
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="px-4">
             <div className="flex flex-wrap items-center gap-4">
               {/* 검색 */}
               <div className="flex-1 min-w-64">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
                   <input
                     type="text"
                     placeholder="제목, 신청자, 부서로 검색..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   />
                 </div>
               </div>

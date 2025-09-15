@@ -20,6 +20,8 @@ import {
   Clock,
   Building,
 } from 'lucide-react';
+import { fetchSpaces } from '@/services/spaces';
+import type { Space } from '@/services/spaces';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -33,6 +35,8 @@ export default function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState<string>('');
+
+  const [spaces, setSpaces] = useState<Space[]>([]);
 
   // 현재 시간 업데이트 (클라이언트 전용)
   useEffect(() => {
@@ -62,6 +66,20 @@ export default function DashboardPage() {
     if (leftArrow) {
       leftArrow.disabled = true; // 초기에는 왼쪽으로 스크롤할 수 없음
     }
+  }, []);
+
+  // 회의실 목록 불러오기
+  useEffect(() => {
+    const loadSpaces = async () => {
+      try {
+        // workspaceId는 스토어나 라우터 param에서 가져오도록
+        const list = await fetchSpaces(1);
+        setSpaces(list);
+      } catch (e) {
+        console.error('회의실 목록 로딩 실패', e);
+      }
+    };
+    loadSpaces();
   }, []);
 
   const handleDateSelect = (date: Date | undefined) => {
@@ -210,17 +228,21 @@ export default function DashboardPage() {
                       }
                     }}
                   >
-                    {rooms.map(room => (
+                    {spaces.map(space => (
                       <div
-                        key={room.id}
+                        key={space.id}
                         className={`flex-shrink-0 w-72 transition-all duration-200 p-2 ${
-                          selectedRoom?.id === room.id ? 'z-10' : 'z-0'
+                          selectedRoom?.id === space.id ? 'z-10' : 'z-0'
                         }`}
                       >
                         <MeetingRoomCard
-                          {...room}
-                          isSelected={selectedRoom?.id === room.id}
-                          onSelect={() => handleRoomSelect(room)}
+                          name={space.name}
+                          description={space.description}
+                          capacity={space.capacity}
+                          features={space.amenities}
+                          status="available" // TODO: 실제 상태 값 있으면 매핑
+                          onSelect={() => handleRoomSelect(space)}
+                          isSelected={selectedRoom?.id === space.id}
                         />
                       </div>
                     ))}
@@ -273,16 +295,15 @@ export default function DashboardPage() {
                         reservations={reservations}
                         showDetailedReservations={false}
                         disabled={date => {
-                          // 주말 비활성화
-                          const day = date.getDay();
-                          return day === 0 || day === 6;
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0); // 시/분/초 제거
+                          return date < today;
                         }}
                       />
                     </div>
                   </div>
 
                   <div className="mt-6 text-sm text-gray-600 space-y-2">
-                    <p>• 주말은 예약할 수 없습니다</p>
                     <p>
                       • 당일부터 예약 가능합니다 (오늘: {new Date().getDate()}
                       일)
@@ -310,17 +331,14 @@ export default function DashboardPage() {
                     selectedTime={selectedTime}
                     onTimeSelect={handleTimeSelect}
                     isTimeReserved={time => {
-                      // 점심시간 (12:00-13:00)과 하드코딩된 예약 시간 체크
-                      const isLunchTime = time === '12:00' || time === '12:30';
                       const isReserved = time === '10:00' || time === '10:30';
-                      return isLunchTime || isReserved;
+                      return isReserved;
                     }}
                     size="large"
                     showLegend={true}
                   />
 
                   <div className="mt-6 text-sm text-gray-600 space-y-2">
-                    <p>• 12:00-13:00는 점심시간으로 예약이 불가합니다</p>
                     <p>• 30분 단위로 예약 가능합니다</p>
                   </div>
                 </CardContent>
