@@ -29,7 +29,6 @@ export interface NewRoom {
   name: string;
   description: string;
   location: string;
-  size: number; // 서버 요청 스키마 포함(POST에만 사용)
   capacity: number;
   requiresApproval: boolean;
   amenities: AmenityKey[];
@@ -59,7 +58,6 @@ const EMPTY_FORM: NewRoom = {
   name: '',
   description: '',
   location: '',
-  size: 0,
   capacity: 4,
   requiresApproval: false,
   amenities: [],
@@ -123,12 +121,6 @@ export default function AddMeetingRoomDialog({
       name: initial?.name ?? prev.name ?? '',
       description: initial?.description ?? prev.description ?? '',
       location: initial?.location ?? prev.location ?? '',
-      size:
-        typeof initial?.size === 'number'
-          ? initial.size
-          : typeof prev.size === 'number'
-          ? prev.size
-          : 0,
       capacity:
         typeof initial?.capacity === 'number'
           ? initial.capacity
@@ -171,7 +163,6 @@ export default function AddMeetingRoomDialog({
     if (!form.name.trim()) e.name = '회의실 이름을 입력하세요.';
     if (!form.location.trim()) e.location = '위치를 입력하세요.';
     if (form.capacity <= 0) e.capacity = '수용인원은 1명 이상이어야 합니다.';
-    if (form.size < 0) e.size = '면적은 0 이상이어야 합니다.';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -232,13 +223,26 @@ export default function AddMeetingRoomDialog({
                 value={form.name}
                 onChange={e => update('name', e.target.value)}
                 className="w-full rounded-md border px-3 py-2 text-sm"
-                placeholder="예) Conference Room A"
+                placeholder="예: 컨퍼런스 룸 A"
                 required
                 aria-required="true"
               />
               {errors.name && (
                 <p className="mt-1 text-xs text-red-600">{errors.name}</p>
               )}
+            </div>
+
+            {/* 설명 */}
+            <div className="sm:col-span-2">
+              <ReqLabel htmlFor="room-description">설명</ReqLabel>
+              <textarea
+                id="room-description"
+                value={form.description}
+                onChange={e => update('description', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="예: 커다란 모니터가 있는 컨퍼런스 룸"
+                rows={2}
+              />
             </div>
 
             <div>
@@ -275,22 +279,6 @@ export default function AddMeetingRoomDialog({
               />
               {errors.capacity && (
                 <p className="mt-1 text-xs text-red-600">{errors.capacity}</p>
-              )}
-            </div>
-
-            <div>
-              <ReqLabel htmlFor="room-size">면적(㎡)</ReqLabel>
-              <input
-                id="room-size"
-                type="number"
-                min={0}
-                step="0.1"
-                value={form.size}
-                onChange={e => update('size', Number(e.target.value))}
-                className="w-full rounded-md border px-3 py-2 text-sm"
-              />
-              {errors.size && (
-                <p className="mt-1 text-xs text-red-600">{errors.size}</p>
               )}
             </div>
 
