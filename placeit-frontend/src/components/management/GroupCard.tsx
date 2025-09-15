@@ -21,6 +21,8 @@ export type GroupCardData = {
 
 type Props = {
   data: GroupCardData;
+  /** 첫번째 버전에서는 버튼 노출을 핸들러 유무로만 제어하므로 canManage는 사용하지 않음 */
+  canManage?: boolean;
   className?: string;
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
@@ -44,13 +46,8 @@ const TYPE_META = {
   },
 } as const;
 
-export default function GroupCard({
-  data,
-  className,
-  onEdit,
-  onDelete,
-  onManageMembers,
-}: Props) {
+export default function GroupCard(props: Props) {
+  const { data, className, onEdit, onDelete, onManageMembers } = props;
   const {
     id,
     name,
@@ -72,6 +69,10 @@ export default function GroupCard({
     2,
     '0'
   )}-${`${d.getDate()}`.padStart(2, '0')}`;
+
+  const showEdit = Boolean(onEdit);
+  const showDelete = Boolean(onDelete);
+  const showActions = showEdit || showDelete;
 
   return (
     <div
@@ -106,25 +107,31 @@ export default function GroupCard({
           </div>
         </div>
 
-        {/* 수정/삭제: MeetingRoomCard와 동일한 아이콘 버튼 UX */}
-        <div className="flex items-center gap-1.5">
-          <button
-            className="p-1 text-gray-500 hover:text-gray-800"
-            onClick={() => onEdit?.(id)}
-            aria-label="그룹 편집"
-            title="편집"
-          >
-            <Edit2 className="h-4 w-4" />
-          </button>
-          <button
-            className="p-1 text-red-500 hover:text-red-700"
-            onClick={() => onDelete?.(id)}
-            aria-label="그룹 삭제"
-            title="삭제"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
+        {/* 수정/삭제: 핸들러가 있을 때만 버튼 DOM 렌더 */}
+        {showActions && (
+          <div className="flex items-center gap-1.5">
+            {showEdit && (
+              <button
+                className="p-1 text-gray-500 hover:text-gray-800"
+                onClick={() => onEdit!(id)}
+                aria-label="그룹 편집"
+                title="편집"
+              >
+                <Edit2 className="h-4 w-4" />
+              </button>
+            )}
+            {showDelete && (
+              <button
+                className="p-1 text-red-500 hover:text-red-700"
+                onClick={() => onDelete!(id)}
+                aria-label="그룹 삭제"
+                title="삭제"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 메타 정보 */}
@@ -163,7 +170,7 @@ export default function GroupCard({
           onClick={() => onManageMembers?.(id)}
         >
           <Users className="h-4 w-4" />
-          멤버 관리
+          멤버 목록
         </Button>
       </div>
     </div>

@@ -2,15 +2,8 @@
 
 import * as React from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import {
-  X as XIcon,
-  Search,
-  UserPlus,
-  UserMinus,
-  UserCircle2,
-} from 'lucide-react';
+import { X as XIcon, Search, UserMinus, UserCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
   fetchGroupMembers,
@@ -24,7 +17,7 @@ export type GroupMember = {
   id: string | number; // user.id
   name: string; // user.name
   subtitle?: string; // user.email 등
-  role: GroupMemberRole; // LEADER/MEMBER (ADMIN은 LEADER로 표기)
+  role: GroupMemberRole;
 };
 
 type Props = {
@@ -32,12 +25,9 @@ type Props = {
   onOpenChange: (v: boolean) => void;
   groupName: string;
   groupId: string | number;
-  /** 외부에서 목록을 완전히 제어하려면 members 전달(없으면 내부 fetch) */
   members?: GroupMember[];
   searchPlaceholder?: string;
-  /** 제거시 부모도 뭔가 처리할 수 있도록 훅 제공(선택) */
   onRemove?: (memberId: GroupMember['id']) => Promise<void> | void;
-  onAddClick?: () => void;
 };
 
 export default function GroupMemberManagerDialog({
@@ -47,7 +37,6 @@ export default function GroupMemberManagerDialog({
   groupId,
   members,
   onRemove,
-  onAddClick,
   searchPlaceholder = '멤버 검색…',
 }: Props) {
   // ---- 내부 상태: API로 불러온 멤버 (members prop 없을 때만 사용) ----
@@ -113,10 +102,9 @@ export default function GroupMemberManagerDialog({
   const filtered = React.useMemo(() => {
     const query = q.trim().toLowerCase();
     if (!query) return source;
+    // 뱃지 제거에 맞춰 역할 텍스트 검색(‘리더/멤버’)도 제외
     return source.filter(m => {
-      const hay = `${m.name} ${m.subtitle ?? ''} ${
-        m.role === 'LEADER' ? '리더' : '멤버'
-      }`.toLowerCase();
+      const hay = `${m.name} ${m.subtitle ?? ''}`.toLowerCase();
       return hay.includes(query);
     });
   }, [source, q]);
@@ -215,23 +203,9 @@ export default function GroupMemberManagerDialog({
                         <UserCircle2 className="h-5 w-5 text-gray-500" />
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-medium text-gray-900">
-                            {m.name}
-                          </p>
-                          {m.role === 'LEADER' ? (
-                            <Badge className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.1">
-                              리더
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="secondary"
-                              className="text-gray-600 text-xs px-1.5 py-0.1"
-                            >
-                              멤버
-                            </Badge>
-                          )}
-                        </div>
+                        <p className="truncate text-sm font-medium text-gray-900">
+                          {m.name}
+                        </p>
                         {m.subtitle ? (
                           <p className="truncate text-xs text-gray-500">
                             {m.subtitle}
