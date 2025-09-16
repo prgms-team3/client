@@ -6,7 +6,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
-import { Switch } from '@/components/ui/switch';
 import { ReservationModal } from '@/components/reservation/ReservationModal';
 import { useReservationStore } from '@/stores/reservationStore';
 import { formatDateToString } from '@/lib/dateUtils';
@@ -14,6 +13,7 @@ import { timeSlots } from '@/data/sampleData';
 import { ChevronLeft, ChevronRight, Users, Filter, Plus } from 'lucide-react';
 import { fetchWorkspaceReservations } from '@/services/reservations';
 import { useActiveWorkspaceId } from '@/lib/workspaceId';
+import { api } from '@/lib/axios';
 
 export default function ReservationsPage() {
   const {
@@ -30,9 +30,19 @@ export default function ReservationsPage() {
   } = useReservationStore();
 
   const [showReservationModal, setShowReservationModal] = useState(false);
-  const [selectedRoom, setSelectedRoom] = useState<string>('');
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
+  const [modalSelectedTime, setModalSelectedTime] = useState<string>(''); // ← 모달에 보낼 클릭 시각
   const currentWsId = useActiveWorkspaceId();
+
+  // 서버에서 가져오는 공간(회의실) 목록 (capacity 포함)
+  type SpaceLite = {
+    id: number;
+    name: string;
+    description?: string;
+    capacity: number;
+    amenities?: string[];
+  };
+  const [spaces, setSpaces] = useState<SpaceLite[]>([]);
 
   const toDateStr = (iso: string) => {
     const d = new Date(iso);
@@ -68,7 +78,7 @@ export default function ReservationsPage() {
     setSelectedDate(new Date());
   }, [setSelectedDate]);
 
-  // 실제 예약 불러오기 (중복 방지)
+  // 실제 예약 불러오기
   useEffect(() => {
     (async () => {
       try {
@@ -76,18 +86,11 @@ export default function ReservationsPage() {
 
         const apiList = await fetchWorkspaceReservations(currentWsId);
 
-        // 현재 스토어에 있는 (id+date+time) 키
-        const existingKeys = new Set(
-          reservations.map(r => `${r.id ?? ''}-${r.date}-${r.time}`)
-        );
-
-        // API → UI 모델 정규화
         const normalized = apiList.map(r => ({
           id: String(r.id),
           title: r.purpose,
           room: r.space?.name ?? `공간#${r.spaceId}`,
           roomId: String(r.space?.id ?? r.spaceId),
-
           date: toDateStr(r.startTime),
           time: toTimeHHmm(r.startTime),
           endTime: toTimeHHmm(r.endTime),
@@ -106,20 +109,47 @@ export default function ReservationsPage() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentWsId]); // addReservation / reservations를 의존성에서 제외해 재추가 방지
+  }, [currentWsId]);
+
+  // 워크스페이스 변경 시 공간 목록 로드(수용인원 등)
+  useEffect(() => {
+    (async () => {
+      try {
+        if (currentWsId == null) return;
+        const { data } = await api.get(`/workspaces/${currentWsId}/spaces`);
+        const list = (Array.isArray(data) ? data : data?.spaces ?? []).map(
+          (s: any) => ({
+            id: Number(s.id),
+            name: s.name,
+            description: s.description ?? '',
+            capacity: Number(s.capacity ?? 0),
+            amenities: s.amenities ?? [],
+          })
+        );
+        setSpaces(list);
+      } catch (e) {
+        console.error('공간 목록 조회 실패', e);
+      }
+    })();
+  }, [currentWsId]);
 
   const handleDateSelect = (date: Date | undefined) => {
     setSelectedDate(date || null);
-    if (date) setShowReservationModal(true);
+    if (date) {
+      setModalSelectedTime(''); // 날짜만 선택 시, 시간은 비워둠(모달에서 선택 가능)
+      setShowReservationModal(true);
+    }
   };
 
-  const handleNewReservation = () => setShowReservationModal(true);
+  const handleNewReservation = () => {
+    setModalSelectedTime(''); // “새 예약” 버튼에서는 기본 시간 비움
+    setShowReservationModal(true);
+  };
   const handleCloseModal = () => setShowReservationModal(false);
 
   // 새로운 예약 추가
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleAddReservation = async (created: any) => {
-    // 서버 응답(ISO) → UI 표시용 포맷으로 변환
     const dateStr = toDateStr(created.startTime);
     const startHHmm = toTimeHHmm(created.startTime);
     const endHHmm = toTimeHHmm(created.endTime);
@@ -171,41 +201,57 @@ export default function ReservationsPage() {
   const roomOptions = useMemo(() => {
     const idToName = new Map<string, string>();
     for (const r of uniqueReservations) {
-      if (r.roomId) idToName.set(r.roomId, r.room);
+      if ((r as any).roomId) idToName.set((r as any).roomId, r.room);
     }
     return Array.from(idToName, ([id, name]) => ({ id, name })).sort((a, b) =>
       a.name.localeCompare(b.name)
     );
   }, [uniqueReservations]);
 
-  // 공간별 토글/선택에 따른 필터링
+  // 공간별 필터링
   const filteredReservations = useMemo(() => {
     if (!selectedRoomId) return [];
-    return uniqueReservations.filter(r => r.roomId === selectedRoomId);
+    return uniqueReservations.filter((r: any) => r.roomId === selectedRoomId);
   }, [uniqueReservations, selectedRoomId]);
 
+  // 선택된 공간 객체(서버의 capacity 반영)
   const selectedRoomObj = useMemo(() => {
     if (!selectedRoomId) return null;
-    const found = roomOptions.find(r => r.id === selectedRoomId);
-    if (!found) return null;
-    return {
-      id: found.id,
-      name: found.name,
-      description: '',
-      capacity: 0,
-      features: [],
-    };
-  }, [roomOptions, selectedRoomId]);
 
-  // 월 뷰
-  const monthReservations = useMemo(() => {
-    // 날짜별 그룹화
-    const grouped: Record<string, typeof filteredReservations> = {};
-    for (const r of filteredReservations) {
-      (grouped[r.date] ??= []).push(r);
+    const fromSpaces = spaces.find(
+      s => String(s.id) === String(selectedRoomId)
+    );
+    if (fromSpaces) {
+      return {
+        id: fromSpaces.id,
+        name: fromSpaces.name,
+        description: fromSpaces.description ?? '',
+        capacity: fromSpaces.capacity ?? 0,
+        features: fromSpaces.amenities ?? [],
+      };
     }
 
-    const result: typeof uniqueReservations = [];
+    const found = roomOptions.find(r => r.id === selectedRoomId);
+    if (found) {
+      return {
+        id: found.id,
+        name: found.name,
+        description: '',
+        capacity: 0,
+        features: [],
+      };
+    }
+    return null;
+  }, [selectedRoomId, spaces, roomOptions]);
+
+  // 월 뷰 집계(+N건)
+  const monthReservations = useMemo(() => {
+    const grouped: Record<string, typeof filteredReservations> = {};
+    for (const r of filteredReservations) {
+      (grouped[(r as any).date] ??= []).push(r as any);
+    }
+
+    const result: any[] = [];
     const toMin = (t: string) => {
       const [h, m] = t.split(':').map(Number);
       return h * 60 + m;
@@ -214,18 +260,16 @@ export default function ReservationsPage() {
     for (const date in grouped) {
       const list = grouped[date]
         .slice()
-        .sort((a, b) => toMin(a.time) - toMin(b.time));
+        .sort((a, b) => toMin((a as any).time) - toMin((b as any).time));
       const first = list[0];
       if (!first) continue;
 
-      // 가장 이른 실제 예약 1건
       result.push(first);
 
-      // "+N건"
       if (list.length > 1) {
         result.push({
           ...first,
-          id: `${first.id}-extra`,
+          id: `${(first as any).id}-extra`,
           title: `+${list.length - 1}건`,
           time: '',
           room: '',
@@ -342,7 +386,7 @@ export default function ReservationsPage() {
               ))}
             </select>
 
-            {/* 새 예약 버튼은 그대로 유지 */}
+            {/* 새 예약 */}
             <Button
               onClick={handleNewReservation}
               className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200"
@@ -552,12 +596,16 @@ export default function ReservationsPage() {
                         : '';
                     const slotMin = toMinutes(time);
 
-                    const reservation = filteredReservations.find(r => {
-                      if (r.date !== selectedDateStr) return false;
-                      const start = toMinutes(r.time);
-                      const end = r.endTime ? toMinutes(r.endTime) : start + 30;
-                      return slotMin >= start && slotMin < end;
-                    });
+                    const reservation = (filteredReservations as any[]).find(
+                      r => {
+                        if (r.date !== selectedDateStr) return false;
+                        const start = toMinutes(r.time);
+                        const end = r.endTime
+                          ? toMinutes(r.endTime)
+                          : start + 30;
+                        return slotMin >= start && slotMin < end;
+                      }
+                    );
 
                     // 현재 시간과 비교하여 비활성화 여부 결정
                     const [hour, minute] = time.split(':').map(Number);
@@ -587,7 +635,10 @@ export default function ReservationsPage() {
                             : 'border-gray-200 hover:bg-gray-50'
                         }`}
                         onClick={() => {
-                          if (!isPastTime) setShowReservationModal(true);
+                          if (!isPastTime) {
+                            setModalSelectedTime(time); // ← 클릭한 시간 저장
+                            setShowReservationModal(true);
+                          }
                         }}
                       >
                         <div
@@ -701,7 +752,6 @@ export default function ReservationsPage() {
                         const currentDayDate = new Date(weekStart);
                         currentDayDate.setDate(weekStart.getDate() + index);
 
-                        // 오늘 00:00 기준
                         const today = new Date();
                         today.setHours(0, 0, 0, 0);
                         const dayStart = new Date(currentDayDate);
@@ -727,6 +777,7 @@ export default function ReservationsPage() {
                             onClick={() => {
                               if (!isPastDay) {
                                 setSelectedDate(currentDayDate);
+                                setModalSelectedTime(''); // 요일만 클릭 시 시간 비움
                                 setShowReservationModal(true);
                               }
                             }}
@@ -782,9 +833,9 @@ export default function ReservationsPage() {
                         currentDayDate.getDate()
                       ).padStart(2, '0')}`;
 
-                      const dayReservations = filteredReservations.filter(
-                        r => r.date === currentDayDateStr
-                      );
+                      const dayReservations = (
+                        filteredReservations as any[]
+                      ).filter(r => r.date === currentDayDateStr);
 
                       return (
                         <div
@@ -804,9 +855,9 @@ export default function ReservationsPage() {
 
                             const slotMin = toMinutes(timeStr);
                             const reservation = dayReservations.find(r => {
-                              const start = toMinutes(r.time);
-                              const end = r.endTime
-                                ? toMinutes(r.endTime)
+                              const start = toMinutes((r as any).time);
+                              const end = (r as any).endTime
+                                ? toMinutes((r as any).endTime)
                                 : start + 30;
                               return slotMin >= start && slotMin < end;
                             });
@@ -822,6 +873,7 @@ export default function ReservationsPage() {
                                 onClick={() => {
                                   if (!isPastDay) {
                                     setSelectedDate(currentDayDate);
+                                    setModalSelectedTime(timeStr); // ← 셀 클릭 시각 저장
                                     setShowReservationModal(true);
                                   }
                                 }}
@@ -829,10 +881,10 @@ export default function ReservationsPage() {
                                 {reservation && (
                                   <div className="absolute inset-1 rounded p-1 text-xs bg-gray-100 text-gray-600">
                                     <div className="font-medium truncate">
-                                      {reservation.title}
+                                      {(reservation as any).title}
                                     </div>
                                     <div className="text-xs opacity-75">
-                                      {reservation.room}
+                                      {(reservation as any).room}
                                     </div>
                                   </div>
                                 )}
@@ -859,7 +911,7 @@ export default function ReservationsPage() {
                   className="w-full [--cell-size:4rem]"
                   showOutsideDays={false}
                   captionLayout="label"
-                  reservations={monthReservations}
+                  reservations={monthReservations as any}
                   showDetailedReservations={true}
                   disabled={date => {
                     const today = new Date();
@@ -880,15 +932,15 @@ export default function ReservationsPage() {
         onAddReservation={handleAddReservation}
         room={selectedRoomObj}
         selectedDate={selectedDate || undefined}
-        selectedTime="10:00"
+        selectedTime={modalSelectedTime} // ← 클릭된 시간 전달
         timeSlots={timeSlots}
         existingReservations={
           selectedDate instanceof Date
-            ? filteredReservations
+            ? (filteredReservations as any[])
                 .filter(r => r.date === formatDateToString(selectedDate))
                 .map((r, index) => ({
                   ...r,
-                  id: r.id || `temp-${Date.now()}-${index}`,
+                  id: (r as any).id || `temp-${Date.now()}-${index}`,
                 }))
             : []
         }
