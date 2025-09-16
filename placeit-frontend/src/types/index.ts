@@ -13,6 +13,7 @@ export interface Reservation {
   id: string;
   title: string;
   room: string;
+  roomId: string;
   date: string;
   time: string;
   endTime?: string;
