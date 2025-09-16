@@ -31,6 +31,7 @@ export default function ReservationsPage() {
 
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<string>('');
+  const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const currentWsId = useActiveWorkspaceId();
 
   const toDateStr = (iso: string) => {
@@ -85,6 +86,8 @@ export default function ReservationsPage() {
           id: String(r.id),
           title: r.purpose,
           room: r.space?.name ?? `공간#${r.spaceId}`,
+          roomId: String(r.space?.id ?? r.spaceId),
+
           date: toDateStr(r.startTime),
           time: toTimeHHmm(r.startTime),
           endTime: toTimeHHmm(r.endTime),
@@ -115,17 +118,42 @@ export default function ReservationsPage() {
 
   // 새로운 예약 추가
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleAddReservation = async (newReservation: any) => {
+  const handleAddReservation = async (created: any) => {
+    // 서버 응답(ISO) → UI 표시용 포맷으로 변환
+    const dateStr = toDateStr(created.startTime);
+    const startHHmm = toTimeHHmm(created.startTime);
+    const endHHmm = toTimeHHmm(created.endTime);
+
+    const roomName =
+      created?.space?.name ?? `공간#${created.spaceId ?? '알수없음'}`;
+
+    const attendees =
+      typeof created.attendees === 'string' &&
+      created.attendees.trim().length > 0
+        ? created.attendees
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter(Boolean)
+        : [];
+
+    const status =
+      created?.status === 'APPROVED'
+        ? ('confirmed' as const)
+        : created?.status === 'REJECTED'
+        ? ('cancelled' as const)
+        : ('pending' as const);
+
     const success = await addReservation({
-      title: newReservation.title,
-      room: newReservation.room,
-      date: newReservation.date,
-      time: newReservation.time,
-      attendees: newReservation.attendees
-        ? newReservation.attendees.split(',').map((s: string) => s.trim())
-        : [],
-      status: 'confirmed' as const,
+      id: String(created.id ?? `${Date.now()}`),
+      title: created.purpose,
+      room: roomName,
+      date: dateStr,
+      time: startHHmm,
+      endTime: endHHmm,
+      attendees,
+      status,
     });
+
     if (success) setShowReservationModal(false);
   };
 
@@ -141,14 +169,34 @@ export default function ReservationsPage() {
 
   // 방 이름 옵션
   const roomOptions = useMemo(() => {
-    return Array.from(new Set(uniqueReservations.map(r => r.room))).sort();
+    const idToName = new Map<string, string>();
+    for (const r of uniqueReservations) {
+      if (r.roomId) idToName.set(r.roomId, r.room);
+    }
+    return Array.from(idToName, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
   }, [uniqueReservations]);
 
   // 공간별 토글/선택에 따른 필터링
   const filteredReservations = useMemo(() => {
-    if (!selectedRoom) return []; // 아무 것도 선택 안 하면 빈 목록
-    return uniqueReservations.filter(r => r.room === selectedRoom);
-  }, [uniqueReservations, selectedRoom]);
+    if (!selectedRoomId) return [];
+    return uniqueReservations.filter(r => r.roomId === selectedRoomId);
+  }, [uniqueReservations, selectedRoomId]);
+
+  const selectedRoomObj = useMemo(() => {
+    if (!selectedRoomId) return null;
+    const found = roomOptions.find(r => r.id === selectedRoomId);
+    if (!found) return null;
+    return {
+      id: found.id,
+      name: found.name,
+      description: '',
+      capacity: 0,
+      features: [],
+    };
+  }, [roomOptions, selectedRoomId]);
+
   // 월 뷰
   const monthReservations = useMemo(() => {
     // 날짜별 그룹화
@@ -282,14 +330,14 @@ export default function ReservationsPage() {
           <div className="flex items-center gap-3">
             {/* 공간 선택 */}
             <select
-              value={selectedRoom}
-              onChange={e => setSelectedRoom(e.target.value)}
+              value={selectedRoomId}
+              onChange={e => setSelectedRoomId(e.target.value)}
               className="h-10 pl-3 pr-8 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white shadow-sm"
             >
               <option value="">공간 선택…</option>
-              {roomOptions.map(room => (
-                <option key={room} value={room}>
-                  {room}
+              {roomOptions.map(opt => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.name}
                 </option>
               ))}
             </select>
@@ -830,13 +878,7 @@ export default function ReservationsPage() {
         isOpen={showReservationModal}
         onClose={handleCloseModal}
         onAddReservation={handleAddReservation}
-        room={{
-          id: '1',
-          name: '회의실1',
-          description: '일반적인 회의에 적합한 회의실',
-          capacity: 8,
-          features: ['프로젝터', '화이트보드', 'WiFi'],
-        }}
+        room={selectedRoomObj}
         selectedDate={selectedDate || undefined}
         selectedTime="10:00"
         timeSlots={timeSlots}
