@@ -10,7 +10,7 @@ import { ReservationModal } from '@/components/reservation/ReservationModal';
 import { useReservationStore } from '@/stores/reservationStore';
 import { formatDateToString } from '@/lib/dateUtils';
 import { timeSlots } from '@/data/sampleData';
-import { ChevronLeft, ChevronRight, Users, Filter, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Check } from 'lucide-react';
 import { fetchWorkspaceReservations } from '@/services/reservations';
 import { useActiveWorkspaceId } from '@/lib/workspaceId';
 import { api } from '@/lib/axios';
@@ -33,11 +33,9 @@ export default function ReservationsPage() {
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [modalSelectedTime, setModalSelectedTime] = useState<string>('');
   const currentWsId = useActiveWorkspaceId();
-
-  // ✅ 새로 추가: "내 예약만 보기" 토글 상태
   const [myOnly, setMyOnly] = useState<boolean>(false);
 
-  // 서버에서 가져오는 공간(회의실) 목록 (capacity 포함)
+  // 서버에서 가져오는 공간(회의실) 목록
   type SpaceLite = {
     id: number;
     name: string;
@@ -76,12 +74,27 @@ export default function ReservationsPage() {
     return 'pending';
   };
 
+  // 09:00 ~ 17:30 타임라인에서 상대 위치 계산
+  const WEEK_BASE_MIN = 9 * 60; // 오전 9시
+  const WEEK_TOTAL_MIN = 17 * 30; // 510분 (09:00~17:30)
+
+  function toBlockStyle(startHHmm: string, endHHmm?: string) {
+    const start = Math.max(0, toMinutes(startHHmm) - WEEK_BASE_MIN);
+    const end = Math.min(
+      WEEK_TOTAL_MIN,
+      (endHHmm ? toMinutes(endHHmm) : toMinutes(startHHmm) + 30) - WEEK_BASE_MIN
+    );
+    const topPct = (start / WEEK_TOTAL_MIN) * 100;
+    const heightPct = Math.max(2, ((end - start) / WEEK_TOTAL_MIN) * 100);
+    return { top: `${topPct}%`, height: `${heightPct}%` };
+  }
+
   // 초기 날짜 설정
   useEffect(() => {
     setSelectedDate(new Date());
   }, [setSelectedDate]);
 
-  // ✅ 예약 불러오기: 워크스페이스 전체 vs 내 예약만
+  // 예약 불러오기: 워크스페이스 전체 vs 내 예약만
   useEffect(() => {
     (async () => {
       try {
@@ -546,7 +559,7 @@ export default function ReservationsPage() {
               </div>
             </div>
 
-            {/* ✅ "내 예약만 보기" 토글 버튼 */}
+            {/* "내 예약만 보기" 토글 버튼 */}
             <Button
               type="button"
               variant={myOnly ? 'default' : 'outline'}
@@ -619,108 +632,122 @@ export default function ReservationsPage() {
                 </div>
 
                 {/* 시간대별 예약 현황 */}
-                <div className="space-y-2">
-                  {timeSlots.map(time => {
-                    const selectedDateStr =
-                      selectedDate instanceof Date
-                        ? `${selectedDate.getFullYear()}-${String(
-                            selectedDate.getMonth() + 1
-                          ).padStart(2, '0')}-${String(
-                            selectedDate.getDate()
-                          ).padStart(2, '0')}`
-                        : '';
-                    const slotMin = toMinutes(time);
+                <div className="border rounded-lg">
+                  {/* 전체 행 높이: 30분 x 17칸 = h-12(3rem) * 17 */}
+                  <div className="grid grid-cols-[80px_1fr]">
+                    {/* 왼쪽: 시간 라벨 */}
+                    <div className="relative">
+                      {Array.from({ length: 17 }, (_, i) => {
+                        const hour = Math.floor(i / 2) + 9;
+                        const minute = i % 2 === 0 ? '00' : '30';
+                        return (
+                          <div
+                            key={i}
+                            className="h-12 border-b border-gray-200 flex items-center justify-end pr-3 text-sm text-gray-600"
+                          >
+                            {`${hour.toString().padStart(2, '0')}:${minute}`}
+                          </div>
+                        );
+                      })}
+                    </div>
 
-                    const reservation = (filteredReservations as any[]).find(
-                      r => {
-                        if (r.date !== selectedDateStr) return false;
-                        const start = toMinutes(r.time);
-                        const end = r.endTime
-                          ? toMinutes(r.endTime)
-                          : start + 30;
-                        return slotMin >= start && slotMin < end;
-                      }
-                    );
+                    {/* 오른쪽: 타임라인(배경 라인 + 예약 블록 + 클릭 레이어) */}
+                    <div
+                      className="relative"
+                      style={{ height: `calc(17 * 3rem)` }}
+                    >
+                      {/* 배경 그리드 라인 */}
+                      <div className="absolute inset-0 pointer-events-none">
+                        {Array.from({ length: 17 }, (_, i) => (
+                          <div
+                            key={i}
+                            className="h-12 border-b border-gray-200"
+                          />
+                        ))}
+                      </div>
 
-                    // 현재 시간과 비교하여 비활성화 여부 결정
-                    const [hour, minute] = time.split(':').map(Number);
-                    const timeInMinutes = hour * 60 + minute;
-                    const currentTime = new Date();
-                    const currentTimeInMinutes =
-                      currentTime.getHours() * 60 + currentTime.getMinutes();
+                      {/* 예약 블록들 (1건=1블록) */}
+                      <div className="absolute inset-0 px-2">
+                        {(() => {
+                          const selectedDateStr =
+                            selectedDate instanceof Date
+                              ? `${selectedDate.getFullYear()}-${String(
+                                  selectedDate.getMonth() + 1
+                                ).padStart(2, '0')}-${String(
+                                  selectedDate.getDate()
+                                ).padStart(2, '0')}`
+                              : '';
 
-                    // 오늘 날짜이고 현재 시간 이전이면 비활성화
-                    const isToday =
-                      selectedDate?.toDateString() ===
-                      currentTime.toDateString();
-                    const isPastTime =
-                      isToday && timeInMinutes < currentTimeInMinutes;
-                    const isCurrentTime =
-                      isToday &&
-                      Math.abs(timeInMinutes - currentTimeInMinutes) <= 15; // ±15분
+                          const dayReservations = (
+                            filteredReservations as any[]
+                          ).filter(r => r.date === selectedDateStr);
 
-                    return (
-                      <div
-                        key={time}
-                        className={`flex items-center gap-4 p-3 border rounded-lg cursor-pointer ${
-                          isPastTime
-                            ? 'border-gray-200 bg-gray-50 opacity-50'
-                            : isCurrentTime
-                            ? 'border-blue-300 bg-blue-50'
-                            : 'border-gray-200 hover:bg-gray-50'
-                        }`}
-                        onClick={() => {
-                          if (!isPastTime) {
-                            setModalSelectedTime(time);
-                            setShowReservationModal(true);
-                          }
-                        }}
-                      >
-                        <div
-                          className={`w-20 text-sm font-medium ${
-                            isPastTime ? 'text-gray-400' : 'text-gray-600'
-                          }`}
-                        >
-                          {time}
-                          {isCurrentTime && (
-                            <span className="ml-2 text-xs text-blue-600 font-bold">
-                              현재
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          {reservation ? (
-                            <div className="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h4 className="font-medium text-gray-900">
-                                    {reservation.title}
-                                  </h4>
-                                  <p className="text-sm text-gray-600">
-                                    {reservation.room}
-                                  </p>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <Users className="h-3 w-3 text-gray-500" />
-                                    <span className="text-xs text-gray-600">
-                                      {reservation.attendees.join(', ')}
-                                    </span>
-                                  </div>
+                          return dayReservations.map((r, idx) => {
+                            const { top, height } = toBlockStyle(
+                              (r as any).time,
+                              (r as any).endTime
+                            );
+                            return (
+                              <div
+                                key={`${(r as any).id}-${idx}`}
+                                className="absolute left-2 right-2 rounded-md border-l-4 border-blue-500 bg-blue-50 shadow-sm p-2 text-xs overflow-hidden"
+                                style={{ top, height }}
+                                title={`${(r as any).time} ~ ${
+                                  (r as any).endTime || ''
+                                }`}
+                              >
+                                <div className="font-semibold truncate">
+                                  {(r as any).title}
+                                </div>
+                                <div className="text-[11px] text-gray-600 truncate">
+                                  {(r as any).room} · {(r as any).time}
+                                  {(r as any).endTime
+                                    ? ` - ${(r as any).endTime}`
+                                    : ''}
                                 </div>
                               </div>
-                            </div>
-                          ) : (
-                            <span
-                              className={
-                                isPastTime ? 'text-gray-300' : 'text-gray-400'
-                              }
-                            >
-                              {isPastTime ? '지난 시간' : '예약 없음'}
-                            </span>
-                          )}
-                        </div>
+                            );
+                          });
+                        })()}
                       </div>
-                    );
-                  })}
+
+                      {/* 클릭 레이어: 30분 단위로 모달 오픈 (과거 시간 잠금 유지) */}
+                      <div className="absolute inset-0">
+                        {Array.from({ length: 17 }, (_, i) => {
+                          const hour = Math.floor(i / 2) + 9;
+                          const minute = i % 2 === 0 ? '00' : '30';
+                          const timeStr = `${hour
+                            .toString()
+                            .padStart(2, '0')}:${minute}`;
+
+                          const now = new Date();
+                          const isToday =
+                            selectedDate?.toDateString() === now.toDateString();
+                          const slotMin =
+                            hour * 60 + (minute === '00' ? 0 : 30);
+                          const nowMin = now.getHours() * 60 + now.getMinutes();
+                          const isPastSlot = isToday && slotMin < nowMin;
+
+                          return (
+                            <div
+                              key={i}
+                              className={`h-12 ${
+                                isPastSlot
+                                  ? 'opacity-50 pointer-events-none'
+                                  : 'cursor-pointer hover:bg-gray-50/60'
+                              }`}
+                              onClick={() => {
+                                if (!isPastSlot) {
+                                  setModalSelectedTime(timeStr);
+                                  setShowReservationModal(true);
+                                }
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -878,60 +905,85 @@ export default function ReservationsPage() {
                       return (
                         <div
                           key={dayIndex}
-                          className={`border-r border-gray-200 last:border-r-0 ${
+                          className={`relative border-r border-gray-200 last:border-r-0 ${
                             isToday ? 'bg-blue-50/30' : ''
                           } ${
                             isPastDay ? 'opacity-50 pointer-events-none' : ''
                           }`}
+                          style={{ height: `calc(17 * 3rem)` }} // h-12(=3rem) * 17칸과 동일한 총 높이
                         >
-                          {Array.from({ length: 17 }, (_, timeIndex) => {
-                            const hour = Math.floor(timeIndex / 2) + 9;
-                            const minute = timeIndex % 2 === 0 ? '00' : '30';
-                            const timeStr = `${hour
-                              .toString()
-                              .padStart(2, '0')}:${minute}`;
-
-                            const slotMin = toMinutes(timeStr);
-                            const isPastSlot =
-                              isPastDay || (isToday && slotMin < nowMin);
-
-                            const reservation = dayReservations.find(r => {
-                              const start = toMinutes((r as any).time);
-                              const end = (r as any).endTime
-                                ? toMinutes((r as any).endTime)
-                                : start + 30;
-                              return slotMin >= start && slotMin < end;
-                            });
-
-                            return (
+                          {/* 배경 그리드 (30분 간격 라인) */}
+                          <div className="absolute inset-0 pointer-events-none">
+                            {Array.from({ length: 17 }, (_, i) => (
                               <div
-                                key={timeIndex}
-                                className={`h-12 border-b border-gray-200 p-1 relative ${
-                                  isPastSlot
-                                    ? 'opacity-50 pointer-events-none'
-                                    : 'cursor-pointer hover:bg-gray-50'
-                                }`}
-                                onClick={() => {
-                                  if (!isPastSlot) {
-                                    setSelectedDate(currentDayDate);
-                                    setModalSelectedTime(timeStr);
-                                    setShowReservationModal(true);
-                                  }
-                                }}
-                              >
-                                {reservation && (
-                                  <div className="absolute inset-1 rounded p-1 text-xs bg-gray-100 text-gray-600">
-                                    <div className="font-medium truncate">
-                                      {(reservation as any).title}
-                                    </div>
-                                    <div className="text-xs opacity-75">
-                                      {(reservation as any).room}
-                                    </div>
+                                key={i}
+                                className="h-12 border-b border-gray-200"
+                              />
+                            ))}
+                          </div>
+
+                          {/* 예약 블록들 */}
+                          <div className="absolute inset-0">
+                            {dayReservations.map((r, idx) => {
+                              const { top, height } = toBlockStyle(
+                                (r as any).time,
+                                (r as any).endTime
+                              );
+                              return (
+                                <div
+                                  key={`${(r as any).id}-${idx}`}
+                                  className="absolute left-1 right-1 rounded-md border-l-4 border-blue-500 bg-blue-50 shadow-sm p-2 text-xs overflow-hidden"
+                                  style={{ top, height }}
+                                  title={`${(r as any).time} ~ ${
+                                    (r as any).endTime || ''
+                                  }`}
+                                >
+                                  <div className="font-semibold text-sm truncate">
+                                    {(r as any).title}
                                   </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                                  <div className="text-[11px] text-gray-600 truncate">
+                                    {(r as any).room} · {(r as any).time}
+                                    {(r as any).endTime
+                                      ? ` - ${(r as any).endTime}`
+                                      : ''}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* 빈 영역 클릭으로 모달 열기 (셀 단위 클릭 유지) */}
+                          <div className="absolute inset-0">
+                            {Array.from({ length: 17 }, (_, timeIndex) => {
+                              const hour = Math.floor(timeIndex / 2) + 9;
+                              const minute = timeIndex % 2 === 0 ? '00' : '30';
+                              const timeStr = `${hour
+                                .toString()
+                                .padStart(2, '0')}:${minute}`;
+                              const slotMin =
+                                hour * 60 + (minute === '00' ? 0 : 30);
+                              const isPastSlot =
+                                isPastDay || (isToday && slotMin < nowMin);
+
+                              return (
+                                <div
+                                  key={timeIndex}
+                                  className={`h-12 p-1 ${
+                                    isPastSlot
+                                      ? 'pointer-events-none'
+                                      : 'cursor-pointer'
+                                  }`}
+                                  onClick={() => {
+                                    if (!isPastSlot) {
+                                      setSelectedDate(currentDayDate);
+                                      setModalSelectedTime(timeStr);
+                                      setShowReservationModal(true);
+                                    }
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })}
