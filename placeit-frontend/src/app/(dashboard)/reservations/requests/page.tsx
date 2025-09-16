@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import {
   Clock,
@@ -16,84 +16,107 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/management/StatCard';
+import { api } from '@/lib/axios';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 
-const sampleRequests = [
-  {
-    id: 1,
-    title: '마케팅 전략 회의',
-    requester: '김민지',
-    department: '마케팅팀',
-    spaceName: '대회의실',
-    date: '2024-01-19',
-    startTime: '10:00',
-    endTime: '11:30',
-    duration: '1시간 30분',
-    attendees: 8,
-    purpose: 'Q1 마케팅 전략 수립 및 캠페인 기획',
-    priority: 'high',
-    requestedAt: '2024-01-18 09:30',
-    status: 'pending',
-  },
-  {
-    id: 2,
-    title: '개발팀 스프린트 리뷰',
-    requester: '박성호',
-    department: '개발팀',
-    spaceName: '회의실1',
-    date: '2024-01-19',
-    startTime: '14:00',
-    endTime: '15:00',
-    duration: '1시간',
-    attendees: 6,
-    purpose: '2주차 스프린트 결과 리뷰 및 다음 스프린트 계획',
-    priority: 'medium',
-    requestedAt: '2024-01-18 11:15',
-    status: 'pending',
-  },
-  {
-    id: 3,
-    title: '임원진 월간 회의',
-    requester: '이정우',
-    department: '경영진',
-    spaceName: '임원회의실',
-    date: '2024-01-20',
-    startTime: '09:00',
-    endTime: '11:00',
-    duration: '2시간',
-    attendees: 12,
-    purpose: '월간 실적 검토 및 향후 전략 논의',
-    priority: 'high',
-    requestedAt: '2024-01-18 08:45',
-    status: 'pending',
-  },
-  {
-    id: 4,
-    title: '신입사원 교육',
-    requester: '최유리',
-    department: '인사팀',
-    spaceName: '세미나실',
-    date: '2024-01-22',
-    startTime: '13:00',
-    endTime: '17:00',
-    duration: '4시간',
-    attendees: 15,
-    purpose: '신입사원 온보딩 교육 프로그램',
-    priority: 'medium',
-    requestedAt: '2024-01-18 14:20',
-    status: 'pending',
-  },
-];
+type Space = {
+  id: number;
+  workspaceId: number;
+  name: string;
+  description: string | null;
+  location: string | null;
+  capacity: number;
+  requiresApproval: boolean;
+  isActive: boolean;
+  amenities: string[];
+  createdAt: string;
+  updatedAt: string;
+  deleted: boolean;
+};
+
+type ReqUser = {
+  id: number;
+  email: string;
+  provider: string;
+  providerId: string;
+  name: string;
+  phone: string | null;
+  createdAt: string;
+  updatedAt: string;
+  isActive: boolean;
+};
+
+type Reservation = {
+  id: number;
+  spaceId: number;
+  userId: number;
+  attendees: string;
+  memo: string;
+  startTime: string;
+  endTime: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | string;
+  purpose: string;
+  createdAt: string;
+  updatedAt: string;
+  space: Space;
+  user: ReqUser;
+};
 
 export default function ReservationRequestsPage() {
-  const [requests, setRequests] = useState(sampleRequests);
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterPriority, setFilterPriority] = useState('all');
+  const [requests, setRequests] = useState<Reservation[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<
+    'all' | 'PENDING' | 'APPROVED' | 'REJECTED'
+  >('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const workspaceId = useWorkspaceStore(state => state.currentId);
+
+  useEffect(() => {
+    const fetchReservations = async () => {
+      if (!workspaceId) return;
+      setLoading(true);
+      try {
+        const res = await api.get<{ reservations: Reservation[] }>(
+          `/workspaces/${workspaceId}/reservations`
+        );
+        // 공간이 승인 필요(requiresApproval: true)인 예약만 보관
+        const onlyApprovalRequired = (res.data.reservations || []).filter(
+          r => r.space?.requiresApproval === true
+        );
+        setRequests(onlyApprovalRequired);
+      } catch (e) {
+        console.error('예약 불러오기 실패', e);
+        setRequests([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchReservations();
+  }, [workspaceId]);
+
+  const filteredRequests = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return requests.filter(request => {
+      const matchesStatus =
+        filterStatus === 'all' || request.status === filterStatus;
+      const matchesSearch =
+        term === '' ||
+        request.purpose?.toLowerCase().includes(term) ||
+        request.memo?.toLowerCase().includes(term) ||
+        request.user?.name?.toLowerCase().includes(term) ||
+        request.space?.name?.toLowerCase().includes(term);
+      // 추가 안전망: 공간이 승인 필요인 것만
+      const matchesApproval = request.space?.requiresApproval === true;
+      return matchesStatus && matchesSearch && matchesApproval;
+    });
+  }, [requests, filterStatus, searchTerm]);
 
   const handleApprove = (requestId: number) => {
     setRequests(prev =>
       prev.map(req =>
-        req.id === requestId ? { ...req, status: 'approved' } : req
+        req.id === requestId
+          ? ({ ...req, status: 'APPROVED' } as Reservation)
+          : req
       )
     );
   };
@@ -101,74 +124,29 @@ export default function ReservationRequestsPage() {
   const handleReject = (requestId: number) => {
     setRequests(prev =>
       prev.map(req =>
-        req.id === requestId ? { ...req, status: 'rejected' } : req
+        req.id === requestId
+          ? ({ ...req, status: 'REJECTED' } as Reservation)
+          : req
       )
     );
   };
 
-  const filteredRequests = requests.filter(request => {
-    const matchesStatus =
-      filterStatus === 'all' || request.status === filterStatus;
-    const matchesPriority =
-      filterPriority === 'all' || request.priority === filterPriority;
-    const matchesSearch =
-      searchTerm === '' ||
-      request.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.requester.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.department.toLowerCase().includes(searchTerm.toLowerCase());
-
-    return matchesStatus && matchesPriority && matchesSearch;
-  });
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-    return `${date.getMonth() + 1}월 ${date.getDate()}일 (${
-      weekdays[date.getDay()]
-    })`;
-  };
-
   const formatDateTime = (dateTimeStr: string) => {
     const date = new Date(dateTimeStr);
-    return `${date.getMonth() + 1}/${date.getDate()} ${date
-      .getHours()
-      .toString()
-      .padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'bg-red-100 text-red-800 border-red-300';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      case 'low':
-        return 'bg-green-100 text-green-800 border-green-300';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
-    }
-  };
-
-  const getPriorityLabel = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return '긴급';
-      case 'medium':
-        return '보통';
-      case 'low':
-        return '낮음';
-      default:
-        return '보통';
-    }
+    const mm = (date.getMonth() + 1).toString().padStart(2, '0');
+    const dd = date.getDate().toString().padStart(2, '0');
+    const hh = date.getHours().toString().padStart(2, '0');
+    const mi = date.getMinutes().toString().padStart(2, '0');
+    return `${mm}/${dd} ${hh}:${mi}`;
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending':
+      case 'PENDING':
         return 'bg-yellow-100 text-yellow-800';
-      case 'approved':
+      case 'APPROVED':
         return 'bg-green-100 text-green-800';
-      case 'rejected':
+      case 'REJECTED':
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -177,20 +155,20 @@ export default function ReservationRequestsPage() {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'pending':
+      case 'PENDING':
         return '대기중';
-      case 'approved':
+      case 'APPROVED':
         return '승인됨';
-      case 'rejected':
+      case 'REJECTED':
         return '거부됨';
       default:
-        return '대기중';
+        return status;
     }
   };
 
-  const pendingCount = requests.filter(r => r.status === 'pending').length;
-  const approvedCount = requests.filter(r => r.status === 'approved').length;
-  const rejectedCount = requests.filter(r => r.status === 'rejected').length;
+  const pendingCount = requests.filter(r => r.status === 'PENDING').length;
+  const approvedCount = requests.filter(r => r.status === 'APPROVED').length;
+  const rejectedCount = requests.filter(r => r.status === 'REJECTED').length;
 
   return (
     <MainLayout activePage="reservation-requests">
@@ -202,7 +180,7 @@ export default function ReservationRequestsPage() {
               예약 요청 관리
             </h1>
             <p className="text-gray-600 mt-2">
-              대기 중인 예약 요청을 승인하거나 거부하세요
+              승인이 필요한 공간 예약만 표시합니다.
             </p>
           </div>
         </div>
@@ -245,7 +223,7 @@ export default function ReservationRequestsPage() {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
                   <input
                     type="text"
-                    placeholder="제목, 신청자, 부서로 검색..."
+                    placeholder="목적, 메모, 신청자, 공간명으로 검색..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
@@ -257,42 +235,20 @@ export default function ReservationRequestsPage() {
               <div className="flex bg-gray-100 rounded-lg p-1">
                 {[
                   { id: 'all', label: '전체' },
-                  { id: 'pending', label: '대기중' },
-                  { id: 'approved', label: '승인됨' },
-                  { id: 'rejected', label: '거부됨' },
-                ].map(status => (
+                  { id: 'PENDING', label: '대기중' },
+                  { id: 'APPROVED', label: '승인됨' },
+                  { id: 'REJECTED', label: '거부됨' },
+                ].map(s => (
                   <button
-                    key={status.id}
-                    onClick={() => setFilterStatus(status.id)}
+                    key={s.id}
+                    onClick={() => setFilterStatus(s.id as typeof filterStatus)}
                     className={`px-3 py-1 rounded-md text-sm font-medium transition-all ${
-                      filterStatus === status.id
+                      filterStatus === s.id
                         ? 'bg-white shadow-sm text-gray-900'
                         : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
-                    {status.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* 우선순위 필터 */}
-              <div className="flex bg-gray-100 rounded-lg p-1">
-                {[
-                  { id: 'all', label: '모든 우선순위' },
-                  { id: 'high', label: '긴급' },
-                  { id: 'medium', label: '보통' },
-                  { id: 'low', label: '낮음' },
-                ].map(priority => (
-                  <button
-                    key={priority.id}
-                    onClick={() => setFilterPriority(priority.id)}
-                    className={`px-3 py-1 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
-                      filterPriority === priority.id
-                        ? 'bg-white shadow-sm text-gray-900'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    {priority.label}
+                    {s.label}
                   </button>
                 ))}
               </div>
@@ -302,7 +258,13 @@ export default function ReservationRequestsPage() {
 
         {/* 예약 요청 목록 */}
         <div className="space-y-4">
-          {filteredRequests.length === 0 ? (
+          {loading ? (
+            <Card>
+              <CardContent className="p-8 text-center text-gray-600">
+                불러오는 중…
+              </CardContent>
+            </Card>
+          ) : filteredRequests.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -320,17 +282,10 @@ export default function ReservationRequestsPage() {
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
+                      <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-lg font-semibold text-gray-900">
-                          {request.title}
+                          {request.purpose || '회의'}
                         </h3>
-                        <Badge
-                          className={`text-xs border ${getPriorityColor(
-                            request.priority
-                          )}`}
-                        >
-                          {getPriorityLabel(request.priority)}
-                        </Badge>
                         <Badge
                           className={`text-xs ${getStatusColor(
                             request.status
@@ -338,35 +293,37 @@ export default function ReservationRequestsPage() {
                         >
                           {getStatusLabel(request.status)}
                         </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          승인 필요
+                        </Badge>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-600">
-                        <div className="flex items-center space-x-2">
-                          <User className="w-4 h-4" />
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4" />
                           <span>
-                            {request.requester} ({request.department})
+                            {formatDateTime(request.startTime)} ~{' '}
+                            {formatDateTime(request.endTime)}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <MapPin className="w-4 h-4" />
-                          <span>{request.spaceName}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Calendar className="w-4 h-4" />
-                          <span>{formatDate(request.date)}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Clock className="w-4 h-4" />
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4" />
                           <span>
-                            {request.startTime} - {request.endTime} (
-                            {request.duration})
+                            {request.user?.name ?? `사용자 #${request.userId}`}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4" />
+                          <span>
+                            {request.space?.name ??
+                              `회의실 #${request.spaceId}`}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    {request.status === 'pending' && (
-                      <div className="flex space-x-2 ml-4">
+                    {request.status === 'PENDING' && (
+                      <div className="flex gap-2 ml-4">
                         <Button
                           size="sm"
                           onClick={() => handleApprove(request.id)}
@@ -394,14 +351,14 @@ export default function ReservationRequestsPage() {
                       <h4 className="text-sm font-medium text-gray-900 mb-1">
                         회의 목적
                       </h4>
-                      <p className="text-sm text-gray-700">{request.purpose}</p>
+                      <p className="text-sm text-gray-700">
+                        {request.purpose || '-'}
+                      </p>
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>참석 예정: {request.attendees}명</span>
-                      <span>
-                        신청일시: {formatDateTime(request.requestedAt)}
-                      </span>
+                      <span>메모: {request.memo || '-'}</span>
+                      <span>신청일시: {formatDateTime(request.createdAt)}</span>
                     </div>
                   </div>
                 </CardContent>
