@@ -10,7 +10,7 @@ import { ReservationModal } from '@/components/reservation/ReservationModal';
 import { useReservationStore } from '@/stores/reservationStore';
 import { formatDateToString } from '@/lib/dateUtils';
 import { timeSlots } from '@/data/sampleData';
-import { ChevronLeft, ChevronRight, Users, Filter, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, Filter, Check } from 'lucide-react';
 import { fetchWorkspaceReservations } from '@/services/reservations';
 import { useActiveWorkspaceId } from '@/lib/workspaceId';
 import { api } from '@/lib/axios';
@@ -31,8 +31,11 @@ export default function ReservationsPage() {
 
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
-  const [modalSelectedTime, setModalSelectedTime] = useState<string>(''); // ← 모달에 보낼 클릭 시각
+  const [modalSelectedTime, setModalSelectedTime] = useState<string>('');
   const currentWsId = useActiveWorkspaceId();
+
+  // ✅ 새로 추가: "내 예약만 보기" 토글 상태
+  const [myOnly, setMyOnly] = useState<boolean>(false);
 
   // 서버에서 가져오는 공간(회의실) 목록 (capacity 포함)
   type SpaceLite = {
@@ -78,13 +81,31 @@ export default function ReservationsPage() {
     setSelectedDate(new Date());
   }, [setSelectedDate]);
 
-  // 실제 예약 불러오기
+  // ✅ 예약 불러오기: 워크스페이스 전체 vs 내 예약만
   useEffect(() => {
     (async () => {
       try {
         if (currentWsId == null) return;
 
-        const apiList = await fetchWorkspaceReservations(currentWsId);
+        let apiList: any[] = [];
+
+        if (myOnly) {
+          // 내 예약만
+          const { data } = await api.get('/reservations/my');
+          const list = Array.isArray(data) ? data : data?.reservations ?? [];
+          // 현재 워크스페이스에 속한 예약만 남김 (space.workspaceId 또는 space.workspace.id 중 있는 값 사용)
+          const wsIdNum = Number(currentWsId);
+          apiList = list.filter((r: any) => {
+            const s = r.space ?? {};
+            const wid = Number(
+              s.workspaceId ?? s.workspace?.id ?? r.workspaceId ?? NaN
+            );
+            return Number.isFinite(wid) ? wid === wsIdNum : true; // 공간 정보가 없으면 보수적으로 포함
+          });
+        } else {
+          // 워크스페이스 전체
+          apiList = await fetchWorkspaceReservations(currentWsId);
+        }
 
         const normalized = apiList.map(r => ({
           id: String(r.id),
@@ -97,7 +118,7 @@ export default function ReservationsPage() {
           attendees: r.attendees
             ? r.attendees
                 .split(',')
-                .map(s => s.trim())
+                .map((s: string) => s.trim())
                 .filter(Boolean)
             : [],
           status: mapStatus(r.status),
@@ -109,7 +130,7 @@ export default function ReservationsPage() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentWsId]);
+  }, [currentWsId, myOnly]);
 
   // 워크스페이스 변경 시 공간 목록 로드(수용인원 등)
   useEffect(() => {
@@ -136,19 +157,18 @@ export default function ReservationsPage() {
   const handleDateSelect = (date: Date | undefined) => {
     setSelectedDate(date || null);
     if (date) {
-      setModalSelectedTime(''); // 날짜만 선택 시, 시간은 비워둠(모달에서 선택 가능)
+      setModalSelectedTime('');
       setShowReservationModal(true);
     }
   };
 
   const handleNewReservation = () => {
-    setModalSelectedTime(''); // “새 예약” 버튼에서는 기본 시간 비움
+    setModalSelectedTime('');
     setShowReservationModal(true);
   };
   const handleCloseModal = () => setShowReservationModal(false);
 
   // 새로운 예약 추가
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleAddReservation = async (created: any) => {
     const dateStr = toDateStr(created.startTime);
     const startHHmm = toTimeHHmm(created.startTime);
@@ -158,8 +178,7 @@ export default function ReservationsPage() {
       created?.space?.name ?? `공간#${created.spaceId ?? '알수없음'}`;
 
     const attendees =
-      typeof created.attendees === 'string' &&
-      created.attendees.trim().length > 0
+      typeof created.attendees === 'string' && created.attendees.trim()
         ? created.attendees
             .split(',')
             .map((s: string) => s.trim())
@@ -207,6 +226,13 @@ export default function ReservationsPage() {
       a.name.localeCompare(b.name)
     );
   }, [uniqueReservations]);
+
+  // 예약/옵션이 로드된 뒤, 처음 한 번 기본 회의실 자동 선택
+  useEffect(() => {
+    if (!selectedRoomId && roomOptions.length > 0) {
+      setSelectedRoomId(roomOptions[0].id); // 이름순 첫 번째
+    }
+  }, [roomOptions, selectedRoomId]);
 
   // 공간별 필터링
   const filteredReservations = useMemo(() => {
@@ -391,7 +417,7 @@ export default function ReservationsPage() {
               onClick={handleNewReservation}
               className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200"
             >
-              <Plus className="h-4 w-4 mr-2" />새 예약
+              새 예약
             </Button>
           </div>
         </div>
@@ -520,13 +546,22 @@ export default function ReservationsPage() {
               </div>
             </div>
 
-            {/* 필터 버튼 (추후 연결) */}
+            {/* ✅ "내 예약만 보기" 토글 버튼 */}
             <Button
-              variant="outline"
+              type="button"
+              variant={myOnly ? 'default' : 'outline'}
               size="sm"
-              className="h-10 px-4 py-2.5 text-sm border-gray-200 hover:bg-gray-50 rounded-lg"
+              aria-pressed={myOnly}
+              onClick={() => setMyOnly(prev => !prev)}
+              className={`h-10 px-4 py-2.5 text-sm rounded-lg transition-all ${
+                myOnly
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200 shadow-lg'
+                  : 'border-gray-200 hover:bg-gray-50'
+              }`}
+              title="내 예약만 보기"
             >
               <Filter className="h-4 w-4 mr-2" />내 예약만 보기
+              {myOnly && <Check className="h-4 w-4 ml-2 opacity-90" />}
             </Button>
           </div>
         </div>
@@ -636,7 +671,7 @@ export default function ReservationsPage() {
                         }`}
                         onClick={() => {
                           if (!isPastTime) {
-                            setModalSelectedTime(time); // ← 클릭한 시간 저장
+                            setModalSelectedTime(time);
                             setShowReservationModal(true);
                           }
                         }}
@@ -777,7 +812,7 @@ export default function ReservationsPage() {
                             onClick={() => {
                               if (!isPastDay) {
                                 setSelectedDate(currentDayDate);
-                                setModalSelectedTime(''); // 요일만 클릭 시 시간 비움
+                                setModalSelectedTime('');
                                 setShowReservationModal(true);
                               }
                             }}
@@ -837,6 +872,9 @@ export default function ReservationsPage() {
                         filteredReservations as any[]
                       ).filter(r => r.date === currentDayDateStr);
 
+                      const now = new Date();
+                      const nowMin = now.getHours() * 60 + now.getMinutes();
+
                       return (
                         <div
                           key={dayIndex}
@@ -854,6 +892,9 @@ export default function ReservationsPage() {
                               .padStart(2, '0')}:${minute}`;
 
                             const slotMin = toMinutes(timeStr);
+                            const isPastSlot =
+                              isPastDay || (isToday && slotMin < nowMin);
+
                             const reservation = dayReservations.find(r => {
                               const start = toMinutes((r as any).time);
                               const end = (r as any).endTime
@@ -866,14 +907,14 @@ export default function ReservationsPage() {
                               <div
                                 key={timeIndex}
                                 className={`h-12 border-b border-gray-200 p-1 relative ${
-                                  isPastDay
-                                    ? ''
+                                  isPastSlot
+                                    ? 'opacity-50 pointer-events-none'
                                     : 'cursor-pointer hover:bg-gray-50'
                                 }`}
                                 onClick={() => {
-                                  if (!isPastDay) {
+                                  if (!isPastSlot) {
                                     setSelectedDate(currentDayDate);
-                                    setModalSelectedTime(timeStr); // ← 셀 클릭 시각 저장
+                                    setModalSelectedTime(timeStr);
                                     setShowReservationModal(true);
                                   }
                                 }}
@@ -932,7 +973,7 @@ export default function ReservationsPage() {
         onAddReservation={handleAddReservation}
         room={selectedRoomObj}
         selectedDate={selectedDate || undefined}
-        selectedTime={modalSelectedTime} // ← 클릭된 시간 전달
+        selectedTime={modalSelectedTime}
         timeSlots={timeSlots}
         existingReservations={
           selectedDate instanceof Date
