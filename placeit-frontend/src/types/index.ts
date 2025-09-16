@@ -15,6 +15,7 @@ export interface Reservation {
   room: string;
   date: string;
   time: string;
+  endTime?: string;
   attendees: string[];
   status: 'confirmed' | 'pending' | 'cancelled';
 }

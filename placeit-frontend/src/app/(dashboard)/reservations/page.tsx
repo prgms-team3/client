@@ -8,10 +8,11 @@ import { Calendar } from '@/components/ui/calendar';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { ReservationModal } from '@/components/reservation/ReservationModal';
 import { useReservationStore } from '@/stores/reservationStore';
-
 import { formatDateToString } from '@/lib/dateUtils';
 import { timeSlots } from '@/data/sampleData';
 import { ChevronLeft, ChevronRight, Users, Filter, Plus } from 'lucide-react';
+import { fetchWorkspaceReservations } from '@/services/reservations';
+import { useActiveWorkspaceId } from '@/lib/workspaceId';
 
 // 샘플 예약 데이터 (2025년 8월 기준)
 const sampleReservations = [
@@ -149,6 +150,36 @@ export default function ReservationsPage() {
   } = useReservationStore();
 
   const [showReservationModal, setShowReservationModal] = useState(false);
+  const currentWsId = useActiveWorkspaceId();
+
+  const toDateStr = (iso: string) => {
+    const d = new Date(iso);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const toTimeHHmm = (iso: string) => {
+    const d = new Date(iso);
+    const H = String(d.getHours()).padStart(2, '0');
+    const M = String(d.getMinutes()).padStart(2, '0');
+    return `${H}:${M}`;
+  };
+
+  const toMinutes = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  // API의 상태
+  const mapStatus = (
+    s: 'PENDING' | 'APPROVED' | 'REJECTED'
+  ): 'pending' | 'confirmed' | 'cancelled' => {
+    if (s === 'APPROVED') return 'confirmed';
+    if (s === 'REJECTED') return 'cancelled';
+    return 'pending';
+  };
 
   // 컴포넌트 마운트 시 샘플 데이터가 없으면 초기화 (한 번만 실행)
   useEffect(() => {
@@ -175,6 +206,40 @@ export default function ReservationsPage() {
   useEffect(() => {
     setSelectedDate(new Date());
   }, [setSelectedDate]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // 1) 서버에서 전체 예약 불러오기
+        if (currentWsId == null) return;
+        const apiList = await fetchWorkspaceReservations(currentWsId);
+
+        // 2) 페이지 스토어가 기대하는 형태로 변환
+        const normalized = apiList.map(r => ({
+          id: String(r.id),
+          title: r.purpose,
+          room: r.space?.name ?? `공간#${r.spaceId}`,
+          date: toDateStr(r.startTime),
+          time: toTimeHHmm(r.startTime),
+          endTime: toTimeHHmm(r.endTime),
+          attendees: r.attendees
+            ? r.attendees
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean)
+            : [],
+          status: mapStatus(r.status), // 'confirmed' | 'pending' | 'cancelled'
+        }));
+
+        // 3) 스토어 초기화
+        for (const r of normalized) {
+          await addReservation(r);
+        }
+      } catch (e) {
+        console.error('예약 불러오기 실패', e);
+      }
+    })();
+  }, [currentWsId, addReservation]);
 
   const handleDateSelect = (date: Date | undefined) => {
     setSelectedDate(date || null);
@@ -505,9 +570,13 @@ export default function ReservationsPage() {
                             selectedDate.getDate()
                           ).padStart(2, '0')}`
                         : '';
-                    const reservation = reservations.find(
-                      r => r.date === selectedDateStr && r.time.startsWith(time)
-                    );
+                    const slotMin = toMinutes(time);
+                    const reservation = reservations.find(r => {
+                      if (r.date !== selectedDateStr) return false;
+                      const start = toMinutes(r.time);
+                      const end = r.endTime ? toMinutes(r.endTime) : start + 30; // endTime 없으면 30분 기본
+                      return slotMin >= start && slotMin < end;
+                    });
 
                     // 현재 시간과 비교하여 비활성화 여부 결정
                     const [hour, minute] = time.split(':').map(Number);
@@ -749,9 +818,14 @@ export default function ReservationsPage() {
                               .toString()
                               .padStart(2, '0')}:${minute}`;
 
-                            const reservation = dayReservations.find(
-                              r => r.time === timeStr
-                            );
+                            const slotMin = toMinutes(timeStr);
+                            const reservation = dayReservations.find(r => {
+                              const start = toMinutes(r.time);
+                              const end = r.endTime
+                                ? toMinutes(r.endTime)
+                                : start + 30;
+                              return slotMin >= start && slotMin < end;
+                            });
 
                             return (
                               <div
@@ -769,9 +843,6 @@ export default function ReservationsPage() {
                                   <div className="absolute inset-1 rounded p-1 text-xs bg-gray-100 text-gray-600">
                                     <div className="font-medium truncate">
                                       {reservation.title}
-                                    </div>
-                                    <div className="text-xs opacity-75">
-                                      {reservation.time}
                                     </div>
                                     <div className="text-xs opacity-75">
                                       {reservation.room}
@@ -807,9 +878,9 @@ export default function ReservationsPage() {
                   reservations={reservations}
                   showDetailedReservations={true}
                   disabled={date => {
-                    // 주말 비활성화
-                    const day = date.getDay();
-                    return day === 0 || day === 6;
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    return date < today;
                   }}
                 />
               </div>

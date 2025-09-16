@@ -5,7 +5,7 @@ import { Calendar, Clock, Building, Users } from 'lucide-react';
 
 interface ReservationSummaryProps {
   room: {
-    id: string;
+    id: string | number;
     name: string;
     description: string;
     capacity: number;
