@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import { ReservationModal } from '@/components/reservation/ReservationModal';
 import { useReservationStore } from '@/stores/reservationStore';
 import { formatDateToString } from '@/lib/dateUtils';
@@ -29,6 +30,7 @@ export default function ReservationsPage() {
   } = useReservationStore();
 
   const [showReservationModal, setShowReservationModal] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState<string>('');
   const currentWsId = useActiveWorkspaceId();
 
   const toDateStr = (iso: string) => {
@@ -137,11 +139,21 @@ export default function ReservationsPage() {
     return Array.from(map.values());
   }, [reservations]);
 
+  // 방 이름 옵션
+  const roomOptions = useMemo(() => {
+    return Array.from(new Set(uniqueReservations.map(r => r.room))).sort();
+  }, [uniqueReservations]);
+
+  // 공간별 토글/선택에 따른 필터링
+  const filteredReservations = useMemo(() => {
+    if (!selectedRoom) return []; // 아무 것도 선택 안 하면 빈 목록
+    return uniqueReservations.filter(r => r.room === selectedRoom);
+  }, [uniqueReservations, selectedRoom]);
   // 월 뷰
   const monthReservations = useMemo(() => {
     // 날짜별 그룹화
-    const grouped: Record<string, typeof uniqueReservations> = {};
-    for (const r of uniqueReservations) {
+    const grouped: Record<string, typeof filteredReservations> = {};
+    for (const r of filteredReservations) {
       (grouped[r.date] ??= []).push(r);
     }
 
@@ -175,11 +187,11 @@ export default function ReservationsPage() {
     }
 
     return result;
-  }, [uniqueReservations]);
+  }, [filteredReservations]);
 
   return (
     <MainLayout activePage="reservations">
-      <div className="p-4 space-y-6 mx-auto">
+      <div className="p-6 space-y-8 mx-auto">
         {/* 에러 메시지 */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -263,15 +275,33 @@ export default function ReservationsPage() {
               예약 현황
             </h1>
             <p className="text-gray-600 mt-2">
-              공간별 예약 현황을 확인하고 관리하세요
+              선택한 공간의 예약 현황을 확인하세요
             </p>
           </div>
-          <Button
-            onClick={handleNewReservation}
-            className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200"
-          >
-            <Plus className="h-4 w-4 mr-2" />새 예약
-          </Button>
+
+          <div className="flex items-center gap-3">
+            {/* 공간 선택 */}
+            <select
+              value={selectedRoom}
+              onChange={e => setSelectedRoom(e.target.value)}
+              className="h-10 pl-3 pr-8 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white shadow-sm"
+            >
+              <option value="">공간 선택…</option>
+              {roomOptions.map(room => (
+                <option key={room} value={room}>
+                  {room}
+                </option>
+              ))}
+            </select>
+
+            {/* 새 예약 버튼은 그대로 유지 */}
+            <Button
+              onClick={handleNewReservation}
+              className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200"
+            >
+              <Plus className="h-4 w-4 mr-2" />새 예약
+            </Button>
+          </div>
         </div>
 
         {/* 뷰 선택 및 네비게이션 */}
@@ -474,7 +504,7 @@ export default function ReservationsPage() {
                         : '';
                     const slotMin = toMinutes(time);
 
-                    const reservation = uniqueReservations.find(r => {
+                    const reservation = filteredReservations.find(r => {
                       if (r.date !== selectedDateStr) return false;
                       const start = toMinutes(r.time);
                       const end = r.endTime ? toMinutes(r.endTime) : start + 30;
@@ -704,7 +734,7 @@ export default function ReservationsPage() {
                         currentDayDate.getDate()
                       ).padStart(2, '0')}`;
 
-                      const dayReservations = uniqueReservations.filter(
+                      const dayReservations = filteredReservations.filter(
                         r => r.date === currentDayDateStr
                       );
 
@@ -812,7 +842,7 @@ export default function ReservationsPage() {
         timeSlots={timeSlots}
         existingReservations={
           selectedDate instanceof Date
-            ? uniqueReservations
+            ? filteredReservations
                 .filter(r => r.date === formatDateToString(selectedDate))
                 .map((r, index) => ({
                   ...r,
