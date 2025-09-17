@@ -374,14 +374,14 @@ export function ReservationModal({
 
             <div>
               <Label htmlFor="notes" className="text-sm font-medium">
-                메모
+                설명
               </Label>
               <Input
                 id="notes"
                 name="notes"
                 value={formData.notes}
                 onChange={handleInputChange}
-                placeholder="추가 메모를 입력하세요"
+                placeholder="회의 목적이나 주요 안건을 간단히 입력하세요"
                 className="mt-1"
               />
             </div>

@@ -189,9 +189,9 @@ export default function ReservationRequestsPage() {
     }
   };
 
-  const formatDateTime = (dateTimeStr: string) => {
+  const formatDateTime = (dateTimeStr: string, addHours = 0) => {
     const date = new Date(dateTimeStr);
-    date.setHours(date.getHours() + 9); // +9시간
+    if (addHours) date.setHours(date.getHours() + addHours);
 
     const mm = (date.getMonth() + 1).toString().padStart(2, '0');
     const dd = date.getDate().toString().padStart(2, '0');
@@ -362,22 +362,22 @@ export default function ReservationRequestsPage() {
                           </Badge>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-600">
-                          <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap gap-6 text-sm text-gray-600">
+                          <div className="flex items-center gap-1">
                             <Calendar className="w-4 h-4" />
                             <span>
                               {formatDateTime(request.startTime)} ~{' '}
                               {formatDateTime(request.endTime)}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
                             <User className="w-4 h-4" />
                             <span>
                               {request.user?.name ??
                                 `사용자 #${request.userId}`}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
                             <MapPin className="w-4 h-4" />
                             <span>
                               {request.space?.name ??
@@ -435,19 +435,23 @@ export default function ReservationRequestsPage() {
                     <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                       <div>
                         <h4 className="text-sm font-medium text-gray-900 mb-1">
-                          회의 목적
+                          참석자 목록
                         </h4>
                         <p className="text-sm text-gray-700">
-                          {request.purpose || '-'}
+                          {request.attendees || '-'}
+                        </p>
+                        <h4 className="text-sm font-medium text-gray-900 mt-2 mb-1">
+                          설명
+                        </h4>
+                        <p className="text-sm text-gray-700">
+                          {request.memo || '-'}
                         </p>
                       </div>
-
-                      <div className="flex items-center justify-between text-xs text-gray-500">
-                        <span>메모: {request.memo || '-'}</span>
-                        <span>
-                          신청일시: {formatDateTime(request.createdAt)}
-                        </span>
-                      </div>
+                    </div>
+                    <div className="flex justify-end text-xs text-gray-500 mt-2">
+                      <span>
+                        신청일시: {formatDateTime(request.createdAt, 9)}
+                      </span>
                     </div>
                   </CardContent>
                 </Card>
