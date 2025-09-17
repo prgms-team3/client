@@ -50,6 +50,14 @@ export type ApiReservation = {
   };
 };
 
+export type UpdateReservationBody = {
+  startTime: string;
+  endTime: string;
+  purpose: string;
+  attendees?: string;
+  memo?: string;
+};
+
 // 예약 생성
 export async function createReservation(body: CreateReservationBody) {
   const { data } = await api.post<Reservation>('/reservations', body);
@@ -63,4 +71,18 @@ export async function fetchWorkspaceReservations(workspaceId: number) {
     total: number;
   }>(`/workspaces/${workspaceId}/reservations`);
   return data.reservations;
+}
+
+// 예약 삭제
+export async function deleteReservation(id: string | number): Promise<void> {
+  await api.delete(`/reservations/${id}`);
+}
+
+// 예약 수정
+export async function updateReservation(
+  id: string | number,
+  body: UpdateReservationBody
+) {
+  const { data } = await api.patch(`/reservations/${id}`, body);
+  return data;
 }
