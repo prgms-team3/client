@@ -425,7 +425,7 @@ export default function UserManagementPage() {
   return (
     <MainLayout activePage="user-management">
       <div className="space-y-6 p-6">
-        {/* 헤더 + 사용자 추가 버튼 */}
+        {/* 헤더 */}
         <div className="flex items-start justify-between">
           <div>
             <h1 className="mb-2 text-3xl font-bold text-gray-900">
@@ -435,7 +435,7 @@ export default function UserManagementPage() {
               조직의 사용자 계정을 조회/관리하세요
             </p>
           </div>
-          <AddUserDialog onAdd={handleAddUser} />
+          {/* <AddUserDialog onAdd={handleAddUser} /> */}
         </div>
 
         {/* 통계 */}
