@@ -12,7 +12,6 @@ import {
   Users,
   Settings,
   FileText,
-  Shield,
   Building2,
   type LucideIcon,
 } from 'lucide-react';
@@ -21,6 +20,7 @@ import { usePathname } from 'next/navigation';
 import { fetchMyWorkspaces } from '@/services/workspaces';
 import { fetchWorkspaceUsers } from '@/services/workspaceUsers';
 import { fetchWorkspaceRooms } from '@/services/meetingRooms';
+import { fetchWorkspaceReservations } from '@/services/reservations';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 interface SidebarProps {
@@ -60,6 +60,8 @@ export function Sidebar({ activePage, userName = '홍길동' }: SidebarProps) {
   const [workspaceCount, setWorkspaceCount] = useState<number>(0);
   const [userCount, setUserCount] = useState<number>(0);
   const [roomCount, setRoomCount] = useState<number>(0);
+  const [approvedCount, setApprovedCount] = useState<number>(0);
+  const [pendingCount, setPendingCount] = useState<number>(0);
 
   const pathname = usePathname();
   const normalize = (p: string) => (p.endsWith('/') ? p.slice(0, -1) : p);
@@ -76,6 +78,42 @@ export function Sidebar({ activePage, userName = '홍길동' }: SidebarProps) {
     }
     return [];
   };
+
+  // 예약 개수 가져오기
+  useEffect(() => {
+    if (!currentId) {
+      setApprovedCount(0);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetchWorkspaceReservations(Number(currentId));
+        const approved = res.filter((r: any) => r.status === 'APPROVED');
+        setApprovedCount(approved.length);
+      } catch (e) {
+        console.error('예약 불러오기 실패:', e);
+        setApprovedCount(0);
+      }
+    })();
+  }, [currentId]);
+
+  // 요청 개수 가져오기
+  useEffect(() => {
+    if (!currentId) {
+      setPendingCount(0);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetchWorkspaceReservations(Number(currentId));
+        const pending = res.filter((r: any) => r.status === 'PENDING');
+        setPendingCount(pending.length);
+      } catch (e) {
+        console.error('예약 불러오기 실패:', e);
+        setPendingCount(0);
+      }
+    })();
+  }, [currentId]);
 
   // 워크스페이스 개수 가져오기
   useEffect(() => {
@@ -141,10 +179,10 @@ export function Sidebar({ activePage, userName = '홍길동' }: SidebarProps) {
     {
       id: 'reservations',
       label: '예약 관리',
-      subtitle: '5건의 예약',
+      subtitle: `${approvedCount}건의 예약`,
       icon: Calendar,
       href: '/reservations',
-      badge: '5',
+      badge: approvedCount > 0 ? String(approvedCount) : null,
       subItems: [
         {
           id: 'reservation-status',
@@ -210,7 +248,7 @@ export function Sidebar({ activePage, userName = '홍길동' }: SidebarProps) {
       label: '오늘 예약',
       subtitle: `${currentMonth}월 ${currentDay}일 예약 현황`,
       icon: Calendar,
-      badge: '2건',
+      badge: `${approvedCount}건`,
       badgeColor: 'bg-blue-500',
       bgColor: 'bg-blue-50',
     },
@@ -219,7 +257,7 @@ export function Sidebar({ activePage, userName = '홍길동' }: SidebarProps) {
       label: '대기 중',
       subtitle: '승인이 필요한 예약이 있습니다',
       icon: FileText,
-      badge: '2건',
+      badge: `${pendingCount}건`,
       badgeColor: 'bg-orange-500',
       bgColor: 'bg-orange-50',
     },
@@ -230,10 +268,6 @@ export function Sidebar({ activePage, userName = '홍길동' }: SidebarProps) {
       <div className="p-6 pt-8 flex flex-col h-full">
         {/* 워크스페이스 섹션 */}
         <div className="mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-6 tracking-tight">
-            애플
-          </h2>
-
           {/* 사용자 정보 */}
           <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 mb-6 shadow-sm">
             <div
@@ -251,7 +285,9 @@ export function Sidebar({ activePage, userName = '홍길동' }: SidebarProps) {
               <div className="font-semibold text-sm text-gray-900">
                 {userName}
               </div>
-              <div className="text-xs text-gray-600">admin@company.com</div>
+              <div className="text-xs text-gray-600">
+                {user?.email ?? 'no-email@example.com'}
+              </div>
             </div>
           </div>
 
