@@ -465,7 +465,7 @@ export function Sidebar({ activePage, userName = '홍길동' }: SidebarProps) {
         {/* 여백을 채우는 div */}
         <div className="flex-1"></div>
 
-        {/* 설정 - 하단 고정 */}
+        {/* 설정 - 하단 고정
         <div className="mt-auto">
           <Link
             href="/settings"
@@ -477,7 +477,7 @@ export function Sidebar({ activePage, userName = '홍길동' }: SidebarProps) {
               <div className="text-xs text-gray-500">프로필 설정</div>
             </div>
           </Link>
-        </div>
+        </div> */}
       </div>
     </aside>
   );
