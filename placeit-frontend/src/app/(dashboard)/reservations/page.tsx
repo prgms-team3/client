@@ -88,9 +88,14 @@ export default function ReservationsPage() {
     return 'hidden'; // 그 외 알 수 없는 값도 숨김 처리
   };
 
-  // 09:00 ~ 17:30 타임라인에서 상대 위치 계산
-  const WEEK_BASE_MIN = 9 * 60; // 오전 9시
-  const WEEK_TOTAL_MIN = 17 * 30; // 510분 (09:00~17:30)
+  // 시간 계산
+  const START_HOUR = 9; // 09:00 시작
+  const END_HOUR = 20; // 라벨은 20:00까지
+  const SLOT_MINUTES = 30; // 30분 간격
+  const SLOTS = ((END_HOUR - START_HOUR) * 60) / SLOT_MINUTES + 1; // 09:00~20:00 라벨: 23개
+  const WEEK_BASE_MIN = START_HOUR * 60; // 540
+  const WEEK_TOTAL_MIN = (END_HOUR - START_HOUR) * 60 + SLOT_MINUTES; // 690 (끝 셀 20:00~20:30 포함)
+  const TIMELINE_HEIGHT = `calc(${SLOTS} * 3rem)`; // CSS 높이 계산에 사용
 
   function toBlockStyle(startHHmm: string, endHHmm?: string) {
     const start = Math.max(0, toMinutes(startHHmm) - WEEK_BASE_MIN);
@@ -725,8 +730,8 @@ export default function ReservationsPage() {
                   <div className="grid grid-cols-[80px_1fr]">
                     {/* 왼쪽: 시간 라벨 */}
                     <div className="relative">
-                      {Array.from({ length: 17 }, (_, i) => {
-                        const hour = Math.floor(i / 2) + 9;
+                      {Array.from({ length: SLOTS }, (_, i) => {
+                        const hour = Math.floor(i / 2) + START_HOUR;
                         const minute = i % 2 === 0 ? '00' : '30';
                         return (
                           <div
@@ -742,11 +747,11 @@ export default function ReservationsPage() {
                     {/* 오른쪽: 타임라인 */}
                     <div
                       className="relative"
-                      style={{ height: `calc(17 * 3rem)` }}
+                      style={{ height: TIMELINE_HEIGHT }}
                     >
                       {/* 배경 그리드 라인 (hover 방해 안 함) */}
                       <div className="absolute inset-0 pointer-events-none">
-                        {Array.from({ length: 17 }, (_, i) => (
+                        {Array.from({ length: SLOTS }, (_, i) => (
                           <div
                             key={i}
                             className="h-12 border-b border-gray-200"
@@ -875,8 +880,8 @@ export default function ReservationsPage() {
 
                       {/* 클릭 레이어 - 블록보다 아래 (z-10) */}
                       <div className="absolute inset-0 z-10">
-                        {Array.from({ length: 17 }, (_, i) => {
-                          const hour = Math.floor(i / 2) + 9;
+                        {Array.from({ length: SLOTS }, (_, i) => {
+                          const hour = Math.floor(i / 2) + START_HOUR;
                           const minute = i % 2 === 0 ? '00' : '30';
                           const timeStr = `${hour
                             .toString()
@@ -1020,8 +1025,8 @@ export default function ReservationsPage() {
                   <div className="grid grid-cols-8">
                     {/* 시간 열 */}
                     <div className="border-r border-gray-200">
-                      {Array.from({ length: 17 }, (_, i) => {
-                        const hour = Math.floor(i / 2) + 9;
+                      {Array.from({ length: SLOTS }, (_, i) => {
+                        const hour = Math.floor(i / 2) + START_HOUR;
                         const minute = i % 2 === 0 ? '00' : '30';
                         return (
                           <div
@@ -1072,11 +1077,11 @@ export default function ReservationsPage() {
                           } ${
                             isPastDay ? 'opacity-50 pointer-events-none' : ''
                           }`}
-                          style={{ height: `calc(17 * 3rem)` }}
+                          style={{ height: TIMELINE_HEIGHT }}
                         >
                           {/* 배경 그리드 */}
                           <div className="absolute inset-0 pointer-events-none">
-                            {Array.from({ length: 17 }, (_, i) => (
+                            {Array.from({ length: SLOTS }, (_, i) => (
                               <div
                                 key={i}
                                 className="h-12 border-b border-gray-200"
@@ -1185,8 +1190,9 @@ export default function ReservationsPage() {
 
                           {/* 빈 영역 클릭 레이어 */}
                           <div className="absolute inset-0 z-10">
-                            {Array.from({ length: 17 }, (_, timeIndex) => {
-                              const hour = Math.floor(timeIndex / 2) + 9;
+                            {Array.from({ length: SLOTS }, (_, timeIndex) => {
+                              const hour =
+                                Math.floor(timeIndex / 2) + START_HOUR;
                               const minute = timeIndex % 2 === 0 ? '00' : '30';
                               const timeStr = `${hour
                                 .toString()
