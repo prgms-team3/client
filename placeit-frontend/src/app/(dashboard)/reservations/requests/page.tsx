@@ -69,6 +69,8 @@ export default function ReservationRequestsPage() {
     'all' | 'PENDING' | 'APPROVED' | 'REJECTED'
   >('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [approvingIds, setApprovingIds] = useState<Set<number>>(new Set());
+  const [rejectingIds, setRejectingIds] = useState<Set<number>>(new Set());
   const workspaceId = useWorkspaceStore(state => state.currentId);
 
   useEffect(() => {
@@ -79,7 +81,7 @@ export default function ReservationRequestsPage() {
         const res = await api.get<{ reservations: Reservation[] }>(
           `/workspaces/${workspaceId}/reservations`
         );
-        // 공간이 승인 필요(requiresApproval: true)인 예약만 보관
+        // 승인 필요 공간만 필터
         const onlyApprovalRequired = (res.data.reservations || []).filter(
           r => r.space?.requiresApproval === true
         );
@@ -96,43 +98,101 @@ export default function ReservationRequestsPage() {
 
   const filteredRequests = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    return requests.filter(request => {
-      const matchesStatus =
-        filterStatus === 'all' || request.status === filterStatus;
-      const matchesSearch =
-        term === '' ||
-        request.purpose?.toLowerCase().includes(term) ||
-        request.memo?.toLowerCase().includes(term) ||
-        request.user?.name?.toLowerCase().includes(term) ||
-        request.space?.name?.toLowerCase().includes(term);
-      // 추가 안전망: 공간이 승인 필요인 것만
-      const matchesApproval = request.space?.requiresApproval === true;
-      return matchesStatus && matchesSearch && matchesApproval;
-    });
+    return requests
+      .filter(request => {
+        const matchesStatus =
+          filterStatus === 'all' || request.status === filterStatus;
+        const matchesSearch =
+          term === '' ||
+          request.purpose?.toLowerCase().includes(term) ||
+          request.memo?.toLowerCase().includes(term) ||
+          request.user?.name?.toLowerCase().includes(term) ||
+          request.space?.name?.toLowerCase().includes(term);
+        const matchesApproval = request.space?.requiresApproval === true;
+        return matchesStatus && matchesSearch && matchesApproval;
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
   }, [requests, filterStatus, searchTerm]);
 
-  const handleApprove = (requestId: number) => {
-    setRequests(prev =>
-      prev.map(req =>
+  // 예약 요청 승인
+  const handleApprove = async (requestId: number) => {
+    if (approvingIds.has(requestId)) return;
+
+    const prev = requests.find(r => r.id === requestId)?.status;
+
+    setRequests(prevList =>
+      prevList.map(req =>
         req.id === requestId
           ? ({ ...req, status: 'APPROVED' } as Reservation)
           : req
       )
     );
+    setApprovingIds(prevSet => new Set(prevSet).add(requestId));
+
+    try {
+      await api.post(`/reservations/${requestId}/approve`);
+    } catch (e) {
+      console.error('예약 승인 실패', e);
+      setRequests(prevList =>
+        prevList.map(req =>
+          req.id === requestId
+            ? ({ ...req, status: prev ?? 'PENDING' } as Reservation)
+            : req
+        )
+      );
+      alert('승인 처리에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setApprovingIds(prevSet => {
+        const next = new Set(prevSet);
+        next.delete(requestId);
+        return next;
+      });
+    }
   };
 
-  const handleReject = (requestId: number) => {
-    setRequests(prev =>
-      prev.map(req =>
+  // 예약 요청 거절
+  const handleReject = async (requestId: number) => {
+    if (rejectingIds.has(requestId)) return;
+
+    const prev = requests.find(r => r.id === requestId)?.status;
+
+    setRequests(prevList =>
+      prevList.map(req =>
         req.id === requestId
           ? ({ ...req, status: 'REJECTED' } as Reservation)
           : req
       )
     );
+    setRejectingIds(prevSet => new Set(prevSet).add(requestId));
+
+    try {
+      await api.post(`/reservations/${requestId}/reject`);
+    } catch (e) {
+      console.error('예약 거절 실패', e);
+      setRequests(prevList =>
+        prevList.map(req =>
+          req.id === requestId
+            ? ({ ...req, status: prev ?? 'PENDING' } as Reservation)
+            : req
+        )
+      );
+      alert('거절 처리에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setRejectingIds(prevSet => {
+        const next = new Set(prevSet);
+        next.delete(requestId);
+        return next;
+      });
+    }
   };
 
   const formatDateTime = (dateTimeStr: string) => {
     const date = new Date(dateTimeStr);
+    date.setHours(date.getHours() + 9); // +9시간
+
     const mm = (date.getMonth() + 1).toString().padStart(2, '0');
     const dd = date.getDate().toString().padStart(2, '0');
     const hh = date.getHours().toString().padStart(2, '0');
@@ -274,96 +334,125 @@ export default function ReservationRequestsPage() {
               </CardContent>
             </Card>
           ) : (
-            filteredRequests.map(request => (
-              <Card
-                key={request.id}
-                className="hover:shadow-md transition-shadow duration-200"
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {request.purpose || '회의'}
-                        </h3>
-                        <Badge
-                          className={`text-xs ${getStatusColor(
-                            request.status
-                          )}`}
-                        >
-                          {getStatusLabel(request.status)}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          승인 필요
-                        </Badge>
+            filteredRequests.map(request => {
+              const approving = approvingIds.has(request.id);
+              const rejecting = rejectingIds.has(request.id);
+
+              return (
+                <Card
+                  key={request.id}
+                  className="hover:shadow-md transition-shadow duration-200"
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {request.purpose || '회의'}
+                          </h3>
+                          <Badge
+                            className={`text-xs ${getStatusColor(
+                              request.status
+                            )}`}
+                          >
+                            {getStatusLabel(request.status)}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            승인 필요
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-600">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4" />
+                            <span>
+                              {formatDateTime(request.startTime)} ~{' '}
+                              {formatDateTime(request.endTime)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4" />
+                            <span>
+                              {request.user?.name ??
+                                `사용자 #${request.userId}`}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4" />
+                            <span>
+                              {request.space?.name ??
+                                `회의실 #${request.spaceId}`}
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-600">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          <span>
-                            {formatDateTime(request.startTime)} ~{' '}
-                            {formatDateTime(request.endTime)}
-                          </span>
+                      {request.status === 'PENDING' && (
+                        <div className="flex gap-2 ml-4">
+                          <Button
+                            size="sm"
+                            onClick={() => handleApprove(request.id)}
+                            disabled={approving || rejecting}
+                            className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {approving ? (
+                              <>
+                                <Clock className="w-4 h-4 mr-1 animate-spin" />
+                                승인 중…
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-4 h-4 mr-1" />
+                                승인
+                              </>
+                            )}
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleReject(request.id)}
+                            disabled={approving || rejecting}
+                            className="text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {rejecting ? (
+                              <>
+                                <Clock className="w-4 h-4 mr-1 animate-spin" />
+                                거절 중…
+                              </>
+                            ) : (
+                              <>
+                                <X className="w-4 h-4 mr-1" />
+                                거절
+                              </>
+                            )}
+                          </Button>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4" />
-                          <span>
-                            {request.user?.name ?? `사용자 #${request.userId}`}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-4 h-4" />
-                          <span>
-                            {request.space?.name ??
-                              `회의실 #${request.spaceId}`}
-                          </span>
-                        </div>
+                      )}
+                    </div>
+
+                    {/* 상세 정보 */}
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900 mb-1">
+                          회의 목적
+                        </h4>
+                        <p className="text-sm text-gray-700">
+                          {request.purpose || '-'}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>메모: {request.memo || '-'}</span>
+                        <span>
+                          신청일시: {formatDateTime(request.createdAt)}
+                        </span>
                       </div>
                     </div>
-
-                    {request.status === 'PENDING' && (
-                      <div className="flex gap-2 ml-4">
-                        <Button
-                          size="sm"
-                          onClick={() => handleApprove(request.id)}
-                          className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
-                        >
-                          <Check className="w-4 h-4 mr-1" />
-                          승인
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleReject(request.id)}
-                          className="text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700 whitespace-nowrap"
-                        >
-                          <X className="w-4 h-4 mr-1" />
-                          거부
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 상세 정보 */}
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900 mb-1">
-                        회의 목적
-                      </h4>
-                      <p className="text-sm text-gray-700">
-                        {request.purpose || '-'}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>메모: {request.memo || '-'}</span>
-                      <span>신청일시: {formatDateTime(request.createdAt)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </div>
       </div>
