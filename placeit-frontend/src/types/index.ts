@@ -13,10 +13,12 @@ export interface Reservation {
   id: string;
   title: string;
   room: string;
+  roomId: string;
   date: string;
   time: string;
+  endTime?: string;
   attendees: string[];
-  status: 'confirmed' | 'pending' | 'cancelled';
+  status: 'confirmed' | 'pending' | 'cancelled' | 'hidden';
 }
 
 export interface User {

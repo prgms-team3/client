@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,132 +8,21 @@ import { Calendar } from '@/components/ui/calendar';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { ReservationModal } from '@/components/reservation/ReservationModal';
 import { useReservationStore } from '@/stores/reservationStore';
-
+import { useUserStore } from '@/stores/userStore';
 import { formatDateToString } from '@/lib/dateUtils';
 import { timeSlots } from '@/data/sampleData';
-import { ChevronLeft, ChevronRight, Users, Filter, Plus } from 'lucide-react';
-
-// 샘플 예약 데이터 (2025년 8월 기준)
-const sampleReservations = [
-  {
-    id: '1',
-    title: '주간 팀 미팅',
-    room: '회의실1',
-    date: '2025-08-06',
-    time: '10:00',
-    attendees: ['김태현', '이영희', '박철수'],
-    status: 'confirmed',
-  },
-  {
-    id: '2',
-    title: '프로젝트 회의',
-    room: '소회의실',
-    date: '2025-08-06',
-    time: '14:00',
-    attendees: ['김태현', '최민수'],
-    status: 'confirmed',
-  },
-  {
-    id: '3',
-    title: '월간 전체 회의',
-    room: '대회의실',
-    date: '2025-08-07',
-    time: '09:00',
-    attendees: ['전사원'],
-    status: 'confirmed',
-  },
-  {
-    id: '4',
-    title: '고객 미팅',
-    room: '회의실2',
-    date: '2025-08-08',
-    time: '15:00',
-    attendees: ['김태현', '이영희'],
-    status: 'pending',
-  },
-  {
-    id: '5',
-    title: '제품 기획 회의',
-    room: '소회의실',
-    date: '2025-08-12',
-    time: '11:00',
-    attendees: ['박철수', '최민수'],
-    status: 'confirmed',
-  },
-  // 더 많은 예약 데이터 추가
-  {
-    id: '6',
-    title: '디자인 리뷰',
-    room: '회의실1',
-    date: '2025-08-13',
-    time: '13:00',
-    attendees: ['이영희', '박철수'],
-    status: 'confirmed',
-  },
-  {
-    id: '7',
-    title: '개발 스크럼',
-    room: '소회의실',
-    date: '2025-08-13',
-    time: '15:00',
-    attendees: ['김태현', '최민수'],
-    status: 'confirmed',
-  },
-  {
-    id: '8',
-    title: '마케팅 전략',
-    room: '대회의실',
-    date: '2025-08-14',
-    time: '10:00',
-    attendees: ['전사원'],
-    status: 'confirmed',
-  },
-  {
-    id: '9',
-    title: 'QA 테스트',
-    room: '회의실2',
-    date: '2025-08-14',
-    time: '14:00',
-    attendees: ['박철수'],
-    status: 'pending',
-  },
-  {
-    id: '10',
-    title: '프로젝트 마감',
-    room: '소회의실',
-    date: '2025-08-15',
-    time: '16:00',
-    attendees: ['김태현', '이영희', '박철수'],
-    status: 'confirmed',
-  },
-  {
-    id: '11',
-    title: '신규 기능 기획',
-    room: '회의실1',
-    date: '2025-08-19',
-    time: '11:00',
-    attendees: ['최민수', '박철수'],
-    status: 'confirmed',
-  },
-  {
-    id: '12',
-    title: '사용자 피드백',
-    room: '회의실2',
-    date: '2025-08-19',
-    time: '15:00',
-    attendees: ['이영희'],
-    status: 'pending',
-  },
-  {
-    id: '13',
-    title: '기술 검토',
-    room: '소회의실',
-    date: '2025-08-19',
-    time: '17:00',
-    attendees: ['김태현', '최민수'],
-    status: 'confirmed',
-  },
-];
+import {
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Check,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
+import { fetchWorkspaceReservations } from '@/services/reservations';
+import { useActiveWorkspaceId } from '@/lib/workspaceId';
+import { api } from '@/lib/axios';
+import { deleteReservation } from '@/services/reservations';
 
 export default function ReservationsPage() {
   const {
@@ -143,83 +32,393 @@ export default function ReservationsPage() {
     setCurrentView,
     reservations,
     addReservation,
+    setReservations,
     error,
     loading,
     clearError,
   } = useReservationStore();
 
+  const myUserId = useUserStore(s => s.user?.id);
+
   const [showReservationModal, setShowReservationModal] = useState(false);
+  const [selectedRoomId, setSelectedRoomId] = useState<string>('');
+  const [modalSelectedTime, setModalSelectedTime] = useState<string>('');
+  const currentWsId = useActiveWorkspaceId();
+  const [myOnly, setMyOnly] = useState<boolean>(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<any | null>(null);
 
-  // 컴포넌트 마운트 시 샘플 데이터가 없으면 초기화 (한 번만 실행)
-  useEffect(() => {
-    const initializeSampleData = async () => {
-      if (reservations.length === 0) {
-        // 샘플 데이터를 store에 추가
-        for (const reservation of sampleReservations) {
-          await addReservation({
-            title: reservation.title,
-            room: reservation.room,
-            date: reservation.date,
-            time: reservation.time,
-            attendees: reservation.attendees,
-            status: reservation.status as 'confirmed' | 'pending' | 'cancelled',
-          });
-        }
-      }
-    };
+  // 서버에서 가져오는 회의실 목록
+  type SpaceLite = {
+    id: number;
+    name: string;
+    description?: string;
+    capacity: number;
+    amenities?: string[];
+  };
+  const [spaces, setSpaces] = useState<SpaceLite[]>([]);
 
-    initializeSampleData();
-  }, [reservations.length, addReservation]); // 의존성 추가
+  const toDateStr = (iso: string) => {
+    const d = new Date(iso);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
 
-  // 컴포넌트 마운트 시 현재 날짜로 설정
+  const toTimeHHmm = (iso: string) => {
+    const d = new Date(iso);
+    const H = String(d.getHours()).padStart(2, '0');
+    const M = String(d.getMinutes()).padStart(2, '0');
+    return `${H}:${M}`;
+  };
+
+  const toMinutes = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  // API의 상태 → UI 상태로 매핑
+  const mapStatus = (
+    s: 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED'
+  ): 'pending' | 'confirmed' | 'cancelled' | 'hidden' => {
+    if (s === 'APPROVED' || s === 'COMPLETED') return 'confirmed';
+    if (s === 'PENDING') return 'pending';
+    if (s === 'REJECTED') return 'hidden'; // 숨기기
+    return 'hidden'; // 그 외 알 수 없는 값도 숨김 처리
+  };
+
+  // 09:00 ~ 17:30 타임라인에서 상대 위치 계산
+  const WEEK_BASE_MIN = 9 * 60; // 오전 9시
+  const WEEK_TOTAL_MIN = 17 * 30; // 510분 (09:00~17:30)
+
+  function toBlockStyle(startHHmm: string, endHHmm?: string) {
+    const start = Math.max(0, toMinutes(startHHmm) - WEEK_BASE_MIN);
+    const end = Math.min(
+      WEEK_TOTAL_MIN,
+      (endHHmm ? toMinutes(endHHmm) : toMinutes(startHHmm) + 30) - WEEK_BASE_MIN
+    );
+    const topPct = (start / WEEK_TOTAL_MIN) * 100;
+    const heightPct = Math.max(2, ((end - start) / WEEK_TOTAL_MIN) * 100);
+    return { top: `${topPct}%`, height: `${heightPct}%` };
+  }
+
+  // 초기 날짜 설정
   useEffect(() => {
     setSelectedDate(new Date());
   }, [setSelectedDate]);
 
+  // 예약 불러오기: 워크스페이스 전체 vs 내 예약만
+  useEffect(() => {
+    (async () => {
+      try {
+        if (currentWsId == null) return;
+
+        let apiList: any[] = [];
+
+        if (myOnly) {
+          const { data } = await api.get('/reservations/my');
+          const list = Array.isArray(data) ? data : data?.reservations ?? [];
+          const wsIdNum = Number(currentWsId);
+          apiList = list.filter((r: any) => {
+            const s = r.space ?? {};
+            const wid = Number(
+              s.workspaceId ?? s.workspace?.id ?? r.workspaceId ?? NaN
+            );
+            return Number.isFinite(wid) ? wid === wsIdNum : true;
+          });
+        } else {
+          apiList = await fetchWorkspaceReservations(currentWsId);
+        }
+
+        const normalized = apiList.map(r => ({
+          id: String(r.id),
+          title: r.purpose,
+          room: r.space?.name ?? `공간#${r.spaceId}`,
+          roomId: String(r.space?.id ?? r.spaceId),
+          date: toDateStr(r.startTime),
+          time: toTimeHHmm(r.startTime),
+          endTime: toTimeHHmm(r.endTime),
+          attendees: r.attendees
+            ? r.attendees
+                .split(',')
+                .map((s: string) => s.trim())
+                .filter(Boolean)
+            : [],
+          status: mapStatus(r.status),
+          ownerId: r.userId ?? r.user?.id ?? null,
+        }));
+
+        setReservations(normalized);
+      } catch (e) {
+        console.error('예약 불러오기 실패', e);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentWsId, myOnly]);
+
+  // 워크스페이스 변경 시 공간 목록 로드(수용인원 등)
+  useEffect(() => {
+    (async () => {
+      try {
+        if (currentWsId == null) return;
+        const { data } = await api.get(`/workspaces/${currentWsId}/spaces`);
+        const list = (Array.isArray(data) ? data : data?.spaces ?? []).map(
+          (s: any) => ({
+            id: Number(s.id),
+            name: s.name,
+            description: s.description ?? '',
+            capacity: Number(s.capacity ?? 0),
+            amenities: s.amenities ?? [],
+          })
+        );
+        setSpaces(list);
+      } catch (e) {
+        console.error('공간 목록 조회 실패', e);
+      }
+    })();
+  }, [currentWsId]);
+
   const handleDateSelect = (date: Date | undefined) => {
     setSelectedDate(date || null);
     if (date) {
-      // 날짜를 클릭하면 예약 모달 열기
+      setModalSelectedTime('');
       setShowReservationModal(true);
     }
   };
 
   const handleNewReservation = () => {
+    setModalSelectedTime('');
+    setShowReservationModal(true);
+  };
+
+  // 새로운 예약 추가
+  const handleAddReservation = async (created: any) => {
+    const dateStr = toDateStr(created.startTime);
+    const startHHmm = toTimeHHmm(created.startTime);
+    const endHHmm = toTimeHHmm(created.endTime);
+
+    const roomName =
+      created?.space?.name ?? `공간#${created.spaceId ?? '알수없음'}`;
+
+    const attendees =
+      typeof created.attendees === 'string' && created.attendees.trim()
+        ? created.attendees
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter(Boolean)
+        : [];
+
+    const status =
+      created?.status === 'APPROVED'
+        ? ('confirmed' as const)
+        : created?.status === 'REJECTED'
+        ? ('cancelled' as const)
+        : ('pending' as const);
+
+    const success = await addReservation({
+      id: String(created.id ?? `${Date.now()}`),
+      title: created.purpose,
+      room: roomName,
+      date: dateStr,
+      time: startHHmm,
+      endTime: endHHmm,
+      attendees,
+      status,
+    });
+
+    if (success) setShowReservationModal(false);
+  };
+
+  // 예약 수정
+  const handleEditClick = (r: any) => {
+    setEditing(r);
+    setModalSelectedTime(r.time);
     setShowReservationModal(true);
   };
 
   const handleCloseModal = () => {
     setShowReservationModal(false);
+    setEditing(null);
   };
 
-  // 새로운 예약 추가 함수
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleAddReservation = async (newReservation: any) => {
-    const success = await addReservation({
-      title: newReservation.title,
-      room: newReservation.room,
-      date: newReservation.date,
-      time: newReservation.time,
-      attendees: newReservation.attendees
-        ? newReservation.attendees.split(',').map((s: string) => s.trim())
-        : [],
-      status: 'confirmed' as const,
-    });
+  const handleUpdateReservation = (updated: any) => {
+    const toDateStr = (iso: string) => {
+      const d = new Date(iso);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+        2,
+        '0'
+      )}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    const toTime = (iso: string) => {
+      const d = new Date(iso);
+      return `${String(d.getHours()).padStart(2, '0')}:${String(
+        d.getMinutes()
+      ).padStart(2, '0')}`;
+    };
 
-    if (success) {
-      setShowReservationModal(false);
+    const mapped = {
+      id: String(updated.id),
+      title: updated.purpose, // 목적 → 타이틀
+      room: editing?.room ?? updated.space?.name ?? `공간#${updated.spaceId}`,
+      roomId: editing?.roomId ?? String(updated.space?.id ?? updated.spaceId),
+      date: toDateStr(updated.startTime),
+      time: toTime(updated.startTime),
+      endTime: toTime(updated.endTime),
+      attendees: (updated.attendees ?? '')
+        .split(',')
+        .map((s: string) => s.trim())
+        .filter(Boolean),
+      status: (() => {
+        if (updated.status === 'APPROVED') return 'confirmed';
+        if (updated.status === 'REJECTED') return 'cancelled';
+        return 'pending';
+      })(),
+    };
+
+    const next = reservations.map((x: any) =>
+      String(x.id) === String(mapped.id) ? { ...x, ...mapped } : x
+    );
+    setReservations(next);
+
+    setShowReservationModal(false);
+    setEditing(null);
+  };
+
+  // 얘약 삭제
+  const handleDeleteClick = async (r: any) => {
+    try {
+      const id = String(r?.id ?? '');
+      if (!id) return;
+
+      const ok = window.confirm('이 예약을 삭제할까요?');
+      if (!ok) return;
+
+      setDeletingId(id);
+
+      await deleteReservation(id);
+
+      const next = reservations.filter(x => String((x as any).id) !== id);
+      setReservations(next);
+    } catch (e: any) {
+      console.error('예약 삭제 실패', e);
+      alert(e?.response?.data?.message ?? '삭제 중 오류가 발생했습니다.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
+  // UI용 '고유' 예약 배열
+  const uniqueReservations = useMemo(() => {
+    const map = new Map<string, (typeof reservations)[number]>();
+    for (const r of reservations) {
+      const k = `${r.id ?? ''}-${r.date}-${r.time}`;
+      if (!map.has(k)) map.set(k, r);
+    }
+    return Array.from(map.values());
+  }, [reservations]);
+
+  // 방 이름 옵션
+  const roomOptions = useMemo(() => {
+    const idToName = new Map<string, string>();
+    for (const r of uniqueReservations) {
+      if ((r as any).roomId) idToName.set((r as any).roomId, r.room);
+    }
+    return Array.from(idToName, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }, [uniqueReservations]);
+
+  // 예약/옵션이 로드된 뒤, 처음 한 번 기본 회의실 자동 선택
+  useEffect(() => {
+    if (!selectedRoomId && roomOptions.length > 0) {
+      setSelectedRoomId(roomOptions[0].id); // 이름순 첫 번째
+    }
+  }, [roomOptions, selectedRoomId]);
+
+  // 공간별 필터링
+  const filteredReservations = useMemo(() => {
+    if (!selectedRoomId) return [];
+    return uniqueReservations.filter((r: any) => r.roomId === selectedRoomId);
+  }, [uniqueReservations, selectedRoomId]);
+
+  // 선택된 공간 객체(서버의 capacity 반영)
+  const selectedRoomObj = useMemo(() => {
+    if (!selectedRoomId) return null;
+
+    const fromSpaces = spaces.find(
+      s => String(s.id) === String(selectedRoomId)
+    );
+    if (fromSpaces) {
+      return {
+        id: fromSpaces.id,
+        name: fromSpaces.name,
+        description: fromSpaces.description ?? '',
+        capacity: fromSpaces.capacity ?? 0,
+        features: fromSpaces.amenities ?? [],
+      };
+    }
+
+    const found = roomOptions.find(r => r.id === selectedRoomId);
+    if (found) {
+      return {
+        id: found.id,
+        name: found.name,
+        description: '',
+        capacity: 0,
+        features: [],
+      };
+    }
+    return null;
+  }, [selectedRoomId, spaces, roomOptions]);
+
+  // 월 뷰 집계(+N건)
+  const monthReservations = useMemo(() => {
+    const grouped: Record<string, typeof filteredReservations> = {};
+    for (const r of filteredReservations) {
+      (grouped[(r as any).date] ??= []).push(r as any);
+    }
+
+    const result: any[] = [];
+    const toMin = (t: string) => {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    for (const date in grouped) {
+      const list = grouped[date]
+        .slice()
+        .sort((a, b) => toMin((a as any).time) - toMin((b as any).time));
+      const first = list[0];
+      if (!first) continue;
+
+      result.push(first);
+
+      if (list.length > 1) {
+        result.push({
+          ...first,
+          id: `${(first as any).id}-extra`,
+          title: `+${list.length - 1}건`,
+          time: '',
+          room: '',
+          status: 'confirmed',
+        });
+      }
+    }
+
+    return result;
+  }, [filteredReservations]);
+
   return (
     <MainLayout activePage="reservations">
-      <div className="p-4 space-y-6 mx-auto">
+      <div className="p-6 space-y-8 mx-auto">
         {/* 에러 메시지 */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
+                  {/* X 아이콘 */}
                   <svg
                     className="h-5 w-5 text-red-400"
                     viewBox="0 0 20 20"
@@ -274,12 +473,12 @@ export default function ReservationsPage() {
                     r="10"
                     stroke="currentColor"
                     strokeWidth="4"
-                  ></circle>
+                  />
                   <path
                     className="opacity-75"
                     fill="currentColor"
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
+                  />
                 </svg>
               </div>
               <div className="ml-3">
@@ -296,15 +495,33 @@ export default function ReservationsPage() {
               예약 현황
             </h1>
             <p className="text-gray-600 mt-2">
-              공간별 예약 현황을 확인하고 관리하세요
+              선택한 공간의 예약 현황을 확인하세요
             </p>
           </div>
-          <Button
-            onClick={handleNewReservation}
-            className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200"
-          >
-            <Plus className="h-4 w-4 mr-2" />새 예약
-          </Button>
+
+          <div className="flex items-center gap-3">
+            {/* 공간 선택 */}
+            <select
+              value={selectedRoomId}
+              onChange={e => setSelectedRoomId(e.target.value)}
+              className="h-10 pl-3 pr-8 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white shadow-sm"
+            >
+              <option value="">공간 선택…</option>
+              {roomOptions.map(opt => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.name}
+                </option>
+              ))}
+            </select>
+
+            {/* 새 예약 */}
+            <Button
+              onClick={handleNewReservation}
+              className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200"
+            >
+              새 예약
+            </Button>
+          </div>
         </div>
 
         {/* 뷰 선택 및 네비게이션 */}
@@ -347,7 +564,7 @@ export default function ReservationsPage() {
 
               {/* 날짜 네비게이션 */}
               <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-4 py-2.5 h-10">
-                {/* 이전 버튼 */}
+                {/* 이전 */}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -368,7 +585,7 @@ export default function ReservationsPage() {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
 
-                {/* 날짜 표시 */}
+                {/* 표시 */}
                 <div className="flex items-center gap-2 px-3 min-w-[160px] justify-center">
                   {selectedDate instanceof Date && (
                     <>
@@ -408,7 +625,7 @@ export default function ReservationsPage() {
                   )}
                 </div>
 
-                {/* 다음 버튼 */}
+                {/* 다음 */}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -431,13 +648,22 @@ export default function ReservationsPage() {
               </div>
             </div>
 
-            {/* 필터 버튼 */}
+            {/* "내 예약만 보기" 토글 버튼 */}
             <Button
-              variant="outline"
+              type="button"
+              variant={myOnly ? 'default' : 'outline'}
               size="sm"
-              className="h-10 px-4 py-2.5 text-sm border-gray-200 hover:bg-gray-50 rounded-lg"
+              aria-pressed={myOnly}
+              onClick={() => setMyOnly(prev => !prev)}
+              className={`h-10 px-4 py-2.5 text-sm rounded-lg transition-all ${
+                myOnly
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200 shadow-lg'
+                  : 'border-gray-200 hover:bg-gray-50'
+              }`}
+              title="내 예약만 보기"
             >
               <Filter className="h-4 w-4 mr-2" />내 예약만 보기
+              {myOnly && <Check className="h-4 w-4 ml-2 opacity-90" />}
             </Button>
           </div>
         </div>
@@ -495,98 +721,195 @@ export default function ReservationsPage() {
                 </div>
 
                 {/* 시간대별 예약 현황 */}
-                <div className="space-y-2">
-                  {timeSlots.map(time => {
-                    const selectedDateStr =
-                      selectedDate instanceof Date
-                        ? `${selectedDate.getFullYear()}-${String(
-                            selectedDate.getMonth() + 1
-                          ).padStart(2, '0')}-${String(
-                            selectedDate.getDate()
-                          ).padStart(2, '0')}`
-                        : '';
-                    const reservation = reservations.find(
-                      r => r.date === selectedDateStr && r.time.startsWith(time)
-                    );
+                <div className="border rounded-lg">
+                  <div className="grid grid-cols-[80px_1fr]">
+                    {/* 왼쪽: 시간 라벨 */}
+                    <div className="relative">
+                      {Array.from({ length: 17 }, (_, i) => {
+                        const hour = Math.floor(i / 2) + 9;
+                        const minute = i % 2 === 0 ? '00' : '30';
+                        return (
+                          <div
+                            key={i}
+                            className="h-12 border-b border-gray-200 flex items-center justify-end pr-3 text-sm text-gray-600"
+                          >
+                            {`${hour.toString().padStart(2, '0')}:${minute}`}
+                          </div>
+                        );
+                      })}
+                    </div>
 
-                    // 현재 시간과 비교하여 비활성화 여부 결정
-                    const [hour, minute] = time.split(':').map(Number);
-                    const timeInMinutes = hour * 60 + minute;
-                    const currentTime = new Date();
-                    const currentTimeInMinutes =
-                      currentTime.getHours() * 60 + currentTime.getMinutes();
-
-                    // 오늘 날짜이고 현재 시간 이전이면 비활성화
-                    const isToday =
-                      selectedDate?.toDateString() ===
-                      currentTime.toDateString();
-                    const isPastTime =
-                      isToday && timeInMinutes < currentTimeInMinutes;
-                    const isCurrentTime =
-                      isToday &&
-                      Math.abs(timeInMinutes - currentTimeInMinutes) <= 15; // 현재 시간 ±15분
-
-                    return (
-                      <div
-                        key={time}
-                        className={`flex items-center gap-4 p-3 border rounded-lg cursor-pointer ${
-                          isPastTime
-                            ? 'border-gray-200 bg-gray-50 opacity-50'
-                            : isCurrentTime
-                            ? 'border-blue-300 bg-blue-50'
-                            : 'border-gray-200 hover:bg-gray-50'
-                        }`}
-                        onClick={() => {
-                          if (!isPastTime) {
-                            setShowReservationModal(true);
-                          }
-                        }}
-                      >
-                        <div
-                          className={`w-20 text-sm font-medium ${
-                            isPastTime ? 'text-gray-400' : 'text-gray-600'
-                          }`}
-                        >
-                          {time}
-                          {isCurrentTime && (
-                            <span className="ml-2 text-xs text-blue-600 font-bold">
-                              현재
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          {reservation ? (
-                            <div className="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h4 className="font-medium text-gray-900">
-                                    {reservation.title}
-                                  </h4>
-                                  <p className="text-sm text-gray-600">
-                                    {reservation.room}
-                                  </p>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <Users className="h-3 w-3 text-gray-500" />
-                                    <span className="text-xs text-gray-600">
-                                      {reservation.attendees.join(', ')}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <span
-                              className={
-                                isPastTime ? 'text-gray-300' : 'text-gray-400'
-                              }
-                            >
-                              {isPastTime ? '지난 시간' : '예약 없음'}
-                            </span>
-                          )}
-                        </div>
+                    {/* 오른쪽: 타임라인 */}
+                    <div
+                      className="relative"
+                      style={{ height: `calc(17 * 3rem)` }}
+                    >
+                      {/* 배경 그리드 라인 (hover 방해 안 함) */}
+                      <div className="absolute inset-0 pointer-events-none">
+                        {Array.from({ length: 17 }, (_, i) => (
+                          <div
+                            key={i}
+                            className="h-12 border-b border-gray-200"
+                          />
+                        ))}
                       </div>
-                    );
-                  })}
+
+                      {/* 예약 블록들 - 가장 위 (z-20) */}
+                      <div className="absolute inset-0 px-2 z-20">
+                        {(() => {
+                          const selectedDateStr =
+                            selectedDate instanceof Date
+                              ? `${selectedDate.getFullYear()}-${String(
+                                  selectedDate.getMonth() + 1
+                                ).padStart(2, '0')}-${String(
+                                  selectedDate.getDate()
+                                ).padStart(2, '0')}`
+                              : '';
+
+                          const dayReservations = (
+                            filteredReservations as any[]
+                          ).filter(r => r.date === selectedDateStr);
+
+                          return dayReservations.map((r, idx) => {
+                            if ((r as any).status === 'hidden') return null; // 숨김 처리
+
+                            const { top, height } = toBlockStyle(
+                              (r as any).time,
+                              (r as any).endTime
+                            );
+
+                            const baseClasses =
+                              'group absolute left-2 right-2 rounded-md shadow-sm p-2 text-xs overflow-hidden';
+
+                            const colorClasses =
+                              (r as any).status === 'confirmed'
+                                ? 'border-l-4 border-blue-500 bg-blue-50'
+                                : 'border-l-4 border-gray-400 bg-gray-100';
+
+                            return (
+                              <div
+                                key={`${(r as any).id}-${idx}`}
+                                className={`${baseClasses} ${colorClasses}`}
+                                style={{ top, height }}
+                                title={`${(r as any).time} ~ ${
+                                  (r as any).endTime || ''
+                                }`}
+                              >
+                                {/* 액션 버튼 */}
+                                {String((r as any).ownerId ?? '') ===
+                                  String(myUserId ?? '') && (
+                                  <div className="absolute top-1 right-1 z-10 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6 rounded-md text-gray-700 hover:bg-blue-100 hover:text-blue-700"
+                                      aria-label="예약 수정"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        handleEditClick(r);
+                                      }}
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6 rounded-md text-gray-700 hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
+                                      aria-label="예약 삭제"
+                                      disabled={
+                                        deletingId === String((r as any).id)
+                                      }
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        handleDeleteClick(r);
+                                      }}
+                                    >
+                                      {deletingId === String((r as any).id) ? (
+                                        <svg
+                                          className="h-3.5 w-3.5 animate-spin"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <circle
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            stroke="currentColor"
+                                            strokeWidth="3"
+                                            fill="none"
+                                            className="opacity-30"
+                                          />
+                                          <path
+                                            d="M12 2a10 10 0 0 1 10 10"
+                                            stroke="currentColor"
+                                            strokeWidth="3"
+                                            fill="none"
+                                          />
+                                        </svg>
+                                      ) : (
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                )}
+
+                                <div className="font-semibold text-sm truncate">
+                                  {(r as any).title}
+                                </div>
+                                <div className="text-[11px] text-gray-600 truncate">
+                                  {(r as any).room} · {(r as any).time}
+                                  {(r as any).endTime
+                                    ? ` - ${(r as any).endTime}`
+                                    : ''}
+                                </div>
+                                {Array.isArray((r as any).attendees) &&
+                                  (r as any).attendees.length > 0 && (
+                                    <div className="text-[11px] text-gray-500 truncate mt-1">
+                                      참석자: {(r as any).attendees.join(', ')}
+                                    </div>
+                                  )}
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+
+                      {/* 클릭 레이어 - 블록보다 아래 (z-10) */}
+                      <div className="absolute inset-0 z-10">
+                        {Array.from({ length: 17 }, (_, i) => {
+                          const hour = Math.floor(i / 2) + 9;
+                          const minute = i % 2 === 0 ? '00' : '30';
+                          const timeStr = `${hour
+                            .toString()
+                            .padStart(2, '0')}:${minute}`;
+
+                          const now = new Date();
+                          const isToday =
+                            selectedDate?.toDateString() === now.toDateString();
+                          const slotMin =
+                            hour * 60 + (minute === '00' ? 0 : 30);
+                          const nowMin = now.getHours() * 60 + now.getMinutes();
+                          const isPastSlot = isToday && slotMin < nowMin;
+
+                          return (
+                            <div
+                              key={i}
+                              className={`h-12 ${
+                                isPastSlot
+                                  ? 'opacity-50 pointer-events-none'
+                                  : 'cursor-pointer hover:bg-gray-50/60'
+                              }`}
+                              onClick={() => {
+                                if (!isPastSlot) {
+                                  setModalSelectedTime(timeStr);
+                                  setShowReservationModal(true);
+                                }
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -643,7 +966,7 @@ export default function ReservationsPage() {
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
                   {/* 요일 헤더 */}
                   <div className="grid grid-cols-8 bg-gray-50 border-b border-gray-200">
-                    <div className="p-3 border-r border-gray-200 bg-gray-50"></div>
+                    <div className="p-3 border-r border-gray-200 bg-gray-50" />
                     {['일', '월', '화', '수', '목', '금', '토'].map(
                       (day, index) => {
                         const weekStart = new Date(selectedDate || new Date());
@@ -653,7 +976,6 @@ export default function ReservationsPage() {
                         const currentDayDate = new Date(weekStart);
                         currentDayDate.setDate(weekStart.getDate() + index);
 
-                        // 오늘 00:00 기준
                         const today = new Date();
                         today.setHours(0, 0, 0, 0);
                         const dayStart = new Date(currentDayDate);
@@ -666,15 +988,20 @@ export default function ReservationsPage() {
                           <div
                             key={day}
                             className={`p-3 text-center border-r border-gray-200 last:border-r-0 rounded-md
-        ${isToday ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' : ''}
-        ${
-          isPastDay
-            ? 'opacity-50 cursor-not-allowed'
-            : 'cursor-pointer hover:bg-gray-100'
-        }`}
+                            ${
+                              isToday
+                                ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                                : ''
+                            }
+                            ${
+                              isPastDay
+                                ? 'opacity-50 cursor-not-allowed'
+                                : 'cursor-pointer hover:bg-gray-100'
+                            }`}
                             onClick={() => {
                               if (!isPastDay) {
                                 setSelectedDate(currentDayDate);
+                                setModalSelectedTime('');
                                 setShowReservationModal(true);
                               }
                             }}
@@ -730,57 +1057,164 @@ export default function ReservationsPage() {
                         currentDayDate.getDate()
                       ).padStart(2, '0')}`;
 
-                      const dayReservations = reservations.filter(
-                        r => r.date === currentDayDateStr
-                      );
+                      const dayReservations = (
+                        filteredReservations as any[]
+                      ).filter(r => r.date === currentDayDateStr);
+
+                      const now = new Date();
+                      const nowMin = now.getHours() * 60 + now.getMinutes();
 
                       return (
                         <div
                           key={dayIndex}
-                          className={`border-r border-gray-200 last:border-r-0
-        ${isToday ? 'bg-blue-50/30' : ''} ${
+                          className={`relative border-r border-gray-200 last:border-r-0 ${
+                            isToday ? 'bg-blue-50/30' : ''
+                          } ${
                             isPastDay ? 'opacity-50 pointer-events-none' : ''
                           }`}
+                          style={{ height: `calc(17 * 3rem)` }}
                         >
-                          {Array.from({ length: 17 }, (_, timeIndex) => {
-                            const hour = Math.floor(timeIndex / 2) + 9;
-                            const minute = timeIndex % 2 === 0 ? '00' : '30';
-                            const timeStr = `${hour
-                              .toString()
-                              .padStart(2, '0')}:${minute}`;
-
-                            const reservation = dayReservations.find(
-                              r => r.time === timeStr
-                            );
-
-                            return (
+                          {/* 배경 그리드 */}
+                          <div className="absolute inset-0 pointer-events-none">
+                            {Array.from({ length: 17 }, (_, i) => (
                               <div
-                                key={timeIndex}
-                                className={`h-12 border-b border-gray-200 p-1 relative
-              ${isPastDay ? '' : 'cursor-pointer hover:bg-gray-50'}`}
-                                onClick={() => {
-                                  if (!isPastDay) {
-                                    setSelectedDate(currentDayDate);
-                                    setShowReservationModal(true);
-                                  }
-                                }}
-                              >
-                                {reservation && (
-                                  <div className="absolute inset-1 rounded p-1 text-xs bg-gray-100 text-gray-600">
-                                    <div className="font-medium truncate">
-                                      {reservation.title}
+                                key={i}
+                                className="h-12 border-b border-gray-200"
+                              />
+                            ))}
+                          </div>
+
+                          {/* 예약 블록들 */}
+                          <div className="absolute inset-0 z-20">
+                            {dayReservations.map((r, idx) => {
+                              if ((r as any).status === 'hidden') return null; // 숨김 처리
+
+                              const { top, height } = toBlockStyle(
+                                (r as any).time,
+                                (r as any).endTime
+                              );
+
+                              const baseClasses =
+                                'group absolute left-2 right-2 rounded-md shadow-sm p-2 text-xs overflow-hidden';
+
+                              const colorClasses =
+                                (r as any).status === 'confirmed'
+                                  ? 'border-l-4 border-blue-500 bg-blue-50'
+                                  : 'border-l-4 border-gray-400 bg-gray-100';
+
+                              return (
+                                <div
+                                  key={`${(r as any).id}-${idx}`}
+                                  className={`${baseClasses} ${colorClasses}`}
+                                  style={{ top, height }}
+                                  title={`${(r as any).time} ~ ${
+                                    (r as any).endTime || ''
+                                  }`}
+                                >
+                                  {/* 액션 버튼 */}
+                                  {String((r as any).ownerId ?? '') ===
+                                    String(myUserId ?? '') && (
+                                    <div className="absolute top-1 right-1 z-10 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-6 w-6 rounded-md text-gray-700 hover:bg-blue-100 hover:text-blue-700"
+                                        aria-label="예약 수정"
+                                        onClick={e => {
+                                          e.stopPropagation();
+                                          handleEditClick(r);
+                                        }}
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-6 w-6 rounded-md text-gray-700 hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
+                                        aria-label="예약 삭제"
+                                        disabled={
+                                          deletingId === String((r as any).id)
+                                        }
+                                        onClick={e => {
+                                          e.stopPropagation();
+                                          handleDeleteClick(r);
+                                        }}
+                                      >
+                                        {deletingId ===
+                                        String((r as any).id) ? (
+                                          <svg
+                                            className="h-3.5 w-3.5 animate-spin"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <circle
+                                              cx="12"
+                                              cy="12"
+                                              r="10"
+                                              stroke="currentColor"
+                                              strokeWidth="3"
+                                              fill="none"
+                                              className="opacity-30"
+                                            />
+                                            <path
+                                              d="M12 2a10 10 0 0 1 10 10"
+                                              stroke="currentColor"
+                                              strokeWidth="3"
+                                              fill="none"
+                                            />
+                                          </svg>
+                                        ) : (
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        )}
+                                      </Button>
                                     </div>
-                                    <div className="text-xs opacity-75">
-                                      {reservation.time}
-                                    </div>
-                                    <div className="text-xs opacity-75">
-                                      {reservation.room}
-                                    </div>
+                                  )}
+
+                                  <div className="font-semibold text-sm truncate">
+                                    {(r as any).title}
                                   </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                                  <div className="text-[11px] text-gray-600 truncate">
+                                    {(r as any).room} · {(r as any).time}
+                                    {(r as any).endTime
+                                      ? ` - ${(r as any).endTime}`
+                                      : ''}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* 빈 영역 클릭 레이어 */}
+                          <div className="absolute inset-0 z-10">
+                            {Array.from({ length: 17 }, (_, timeIndex) => {
+                              const hour = Math.floor(timeIndex / 2) + 9;
+                              const minute = timeIndex % 2 === 0 ? '00' : '30';
+                              const timeStr = `${hour
+                                .toString()
+                                .padStart(2, '0')}:${minute}`;
+                              const slotMin =
+                                hour * 60 + (minute === '00' ? 0 : 30);
+                              const isPastSlot =
+                                isPastDay || (isToday && slotMin < nowMin);
+
+                              return (
+                                <div
+                                  key={timeIndex}
+                                  className={`h-12 p-1 ${
+                                    isPastSlot
+                                      ? 'pointer-events-none'
+                                      : 'cursor-pointer'
+                                  }`}
+                                  onClick={() => {
+                                    if (!isPastSlot) {
+                                      setSelectedDate(currentDayDate);
+                                      setModalSelectedTime(timeStr);
+                                      setShowReservationModal(true);
+                                    }
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })}
@@ -792,7 +1226,6 @@ export default function ReservationsPage() {
 
           {/* 월 뷰 */}
           <TabsContent value="month" className="space-y-4 w-full">
-            {/* Calendar */}
             <div className="bg-white border border-gray-200 rounded-lg max-w-4xl mx-auto p-4">
               <div className="[&_.rdp-month_caption]:!hidden [&_.rdp-caption]:!hidden [&_.rdp-caption_label]:!hidden">
                 <Calendar
@@ -802,14 +1235,12 @@ export default function ReservationsPage() {
                   className="w-full [--cell-size:4rem]"
                   showOutsideDays={false}
                   captionLayout="label"
-                  fromYear={2024}
-                  toYear={2026}
-                  reservations={reservations}
+                  reservations={monthReservations as any}
                   showDetailedReservations={true}
                   disabled={date => {
-                    // 주말 비활성화
-                    const day = date.getDay();
-                    return day === 0 || day === 6;
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    return date < today;
                   }}
                 />
               </div>
@@ -818,29 +1249,39 @@ export default function ReservationsPage() {
         </Tabs>
       </div>
 
-      {/* 예약 모달 */}
+      {/* 모달 */}
       <ReservationModal
         isOpen={showReservationModal}
         onClose={handleCloseModal}
         onAddReservation={handleAddReservation}
-        room={{
-          id: '1',
-          name: '회의실1',
-          description: '일반적인 회의에 적합한 회의실',
-          capacity: 8,
-          features: ['프로젝터', '화이트보드', 'WiFi'],
-        }}
+        onUpdateReservation={handleUpdateReservation}
+        room={selectedRoomObj}
         selectedDate={selectedDate || undefined}
-        selectedTime="10:00"
+        selectedTime={modalSelectedTime}
         timeSlots={timeSlots}
+        mode={editing ? 'edit' : 'create'}
+        editingReservation={
+          editing
+            ? {
+                id: editing.id,
+                date: editing.date,
+                time: editing.time,
+                endTime: editing.endTime,
+                title: editing.title,
+                attendees: Array.isArray(editing.attendees)
+                  ? editing.attendees.join(', ')
+                  : editing.attendees ?? '',
+                notes: editing.notes ?? '',
+              }
+            : undefined
+        }
         existingReservations={
           selectedDate instanceof Date
-            ? reservations
+            ? (filteredReservations as any[])
                 .filter(r => r.date === formatDateToString(selectedDate))
                 .map((r, index) => ({
                   ...r,
-                  // id가 없거나 중복될 경우를 대비해 index 추가
-                  id: r.id || `temp-${Date.now()}-${index}`,
+                  id: (r as any).id || `temp-${Date.now()}-${index}`,
                 }))
             : []
         }

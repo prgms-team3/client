@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,24 +17,45 @@ import { Building, Users } from 'lucide-react';
 import { DurationSelector } from './DurationSelector';
 import { ReservationSummary } from './ReservationSummary';
 import { TimeSelectionGrid } from './TimeSelectionGrid';
+import { createReservation, updateReservation } from '@/services/reservations';
 
 interface ReservationModalProps {
   isOpen: boolean;
   onClose: () => void;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onAddReservation?: (newReservation: any) => void;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onUpdateReservation?: (updated: any) => void;
+
+  mode?: 'create' | 'edit';
+
+  editingReservation?: {
+    id: string | number;
+    date: string;
+    time: string;
+    endTime?: string;
+    title: string;
+    attendees?: string;
+    notes?: string;
+  };
+
   onTimeChange?: (time: string) => void;
+
   room: {
-    id: string;
+    id: number | string;
     name: string;
     description: string;
     capacity: number;
     features: string[];
     reservedTime?: string;
-  };
+  } | null;
+
   selectedDate?: Date;
   selectedTime?: string;
   timeSlots: string[];
+
   existingReservations?: Array<{
     id: string;
     title: string;
@@ -46,17 +67,58 @@ interface ReservationModalProps {
   }>;
 }
 
+function toKstIso(date: Date, timeHHmm: string) {
+  const [hh, mm] = timeHHmm.split(':').map(n => parseInt(n, 10));
+  const local = new Date(date);
+  local.setHours(hh, mm, 0, 0);
+
+  const yyyy = local.getFullYear();
+  const MM = String(local.getMonth() + 1).padStart(2, '0');
+  const dd = String(local.getDate()).padStart(2, '0');
+  const HH = String(local.getHours()).padStart(2, '0');
+  const m = String(local.getMinutes()).padStart(2, '0');
+  return `${yyyy}-${MM}-${dd}T${HH}:${m}:00+09:00`;
+}
+
+function durationToMinutes(duration: string) {
+  if (duration.includes('시간')) {
+    const num = parseInt(duration.replace('시간', '').trim(), 10);
+    return isNaN(num) ? 60 : num * 60;
+  }
+  if (duration.includes('분')) {
+    const num = parseInt(duration.replace('분', '').trim(), 10);
+    return isNaN(num) ? 30 : num;
+  }
+  return 30;
+}
+
+function addMinutesToIso(iso: string, addMin: number) {
+  const d = new Date(iso);
+  d.setMinutes(d.getMinutes() + addMin);
+
+  const yyyy = d.getFullYear();
+  const MM = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const HH = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${yyyy}-${MM}-${dd}T${HH}:${m}:00+09:00`;
+}
+
 export function ReservationModal({
   isOpen,
   onClose,
   onAddReservation,
+  onUpdateReservation,
   onTimeChange,
+  mode = 'create',
+  editingReservation,
   room,
   selectedDate,
   selectedTime,
   timeSlots,
   existingReservations = [],
 }: ReservationModalProps) {
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     attendees: '',
@@ -65,12 +127,45 @@ export function ReservationModal({
     duration: '30분',
   });
 
-  // selectedTime이 변경될 때 formData도 동기화
-  React.useEffect(() => {
-    if (selectedTime) {
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (mode === 'edit' && editingReservation) {
+      const calcDuration = () => {
+        const s = editingReservation.time;
+        const e = editingReservation.endTime;
+        if (!s || !e) return '30분';
+        const [sh, sm] = s.split(':').map(Number);
+        const [eh, em] = e.split(':').map(Number);
+        const delta = eh * 60 + em - (sh * 60 + sm);
+        return delta % 60 === 0 ? `${delta / 60}시간` : `${delta}분`;
+      };
+
+      setFormData({
+        title: editingReservation.title ?? '',
+        attendees: editingReservation.attendees ?? '',
+        notes: editingReservation.notes ?? '',
+        selectedTime: editingReservation.time ?? '',
+        duration: calcDuration(),
+      });
+
+      if (editingReservation.time) onTimeChange?.(editingReservation.time);
+    } else {
+      // create 모드: selectedTime 반영
+      setFormData(prev => ({
+        ...prev,
+        selectedTime: selectedTime || '',
+        duration: '30분',
+      }));
+    }
+  }, [isOpen, mode, editingReservation, selectedTime, onTimeChange]);
+
+  // create 모드에서 외부 selectedTime이 바뀌면 동기화
+  useEffect(() => {
+    if (mode !== 'edit' && selectedTime) {
       setFormData(prev => ({ ...prev, selectedTime }));
     }
-  }, [selectedTime]);
+  }, [selectedTime, mode]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -80,54 +175,70 @@ export function ReservationModal({
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // 제출
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 예약 정보 검증
-    if (!formData.title.trim()) {
-      alert('회의 제목을 입력해주세요.');
-      return;
+    if (!room) return alert('회의실을 선택해주세요.');
+    if (!formData.selectedTime) return alert('시간을 선택해주세요.');
+    if (!formData.title.trim()) return alert('회의 제목을 입력해주세요.');
+
+    // 기준 날짜: edit 모드면 editingReservation.date 사용
+    const baseDate =
+      mode === 'edit' && editingReservation
+        ? (() => {
+            const [y, m, d] = editingReservation.date.split('-').map(Number);
+            return new Date(y, (m || 1) - 1, d || 1);
+          })()
+        : selectedDate;
+
+    if (!baseDate) return alert('날짜를 선택해주세요.');
+
+    try {
+      setSubmitting(true);
+
+      const startIso = toKstIso(baseDate, formData.selectedTime);
+      const endIso = addMinutesToIso(
+        startIso,
+        durationToMinutes(formData.duration)
+      );
+
+      const payload = {
+        startTime: startIso,
+        endTime: endIso,
+        purpose: formData.title,
+        attendees: formData.attendees,
+        memo: formData.notes,
+      };
+
+      if (mode === 'edit' && editingReservation?.id != null) {
+        const updated = await updateReservation(editingReservation.id, payload);
+        onUpdateReservation?.(updated);
+        alert('예약이 수정되었습니다.');
+        handleClose();
+      } else {
+        const created = await createReservation({
+          spaceId: Number(room.id),
+          ...payload,
+        });
+        onAddReservation?.(created);
+        alert('예약 요청이 등록되었습니다.');
+        handleClose();
+      }
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        (mode === 'edit'
+          ? '예약 수정 중 오류가 발생했습니다.'
+          : '예약 요청 중 오류가 발생했습니다.');
+      alert(msg);
+    } finally {
+      setSubmitting(false);
     }
-
-    // 예약 정보 생성 (로컬 시간 기준)
-    const reservationData = {
-      room: room.name,
-      date: selectedDate
-        ? `${selectedDate.getFullYear()}-${String(
-            selectedDate.getMonth() + 1
-          ).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(
-            2,
-            '0'
-          )}`
-        : '',
-      time: formData.selectedTime,
-      title: formData.title,
-      attendees: formData.attendees,
-      notes: formData.notes,
-    };
-
-    // onAddReservation 콜백이 있으면 호출
-    if (onAddReservation) {
-      onAddReservation(reservationData);
-    } else {
-      console.log('예약 정보:', reservationData);
-      alert('예약이 완료되었습니다!');
-    }
-
-    // 폼 초기화
-    setFormData({
-      title: '',
-      attendees: '',
-      notes: '',
-      selectedTime: selectedTime || '',
-      duration: '30분',
-    });
-
-    onClose();
   };
 
   const handleClose = () => {
-    // 폼 초기화
     setFormData({
       title: '',
       attendees: '',
@@ -138,18 +249,28 @@ export function ReservationModal({
     onClose();
   };
 
-  // 예약된 시간인지 확인하는 함수
+  // 예약된 시간인지 확인
   const isTimeReserved = (time: string) => {
-    if (!room.reservedTime) return false;
-
+    if (!room?.reservedTime) return false;
     const [startTime, endTime] = room.reservedTime.split('-');
     return time >= startTime && time < endTime;
   };
 
-  // room이 null인 경우 모달을 렌더링하지 않음
-  if (!room) {
-    return null;
-  }
+  if (!room) return null;
+
+  /** 요약에 표시할 날짜/시간(수정 모드면 editing 값 우선) */
+  const summaryDate: Date | undefined =
+    mode === 'edit' && editingReservation
+      ? (() => {
+          const [y, m, d] = editingReservation.date.split('-').map(Number);
+          return new Date(y, (m || 1) - 1, d || 1);
+        })()
+      : selectedDate;
+
+  const summaryTime =
+    mode === 'edit' && editingReservation
+      ? editingReservation.time
+      : formData.selectedTime || selectedTime;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -157,10 +278,12 @@ export function ReservationModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building className="h-5 w-5 text-blue-600" />
-            회의실 예약
+            {mode === 'edit' ? '예약 수정' : '회의실 예약'}
           </DialogTitle>
           <DialogDescription>
-            회의실 예약을 위한 정보를 입력해주세요.
+            {mode === 'edit'
+              ? '예약 정보를 수정합니다.'
+              : '회의실 예약을 위한 정보를 입력해주세요.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -168,12 +291,12 @@ export function ReservationModal({
           {/* 예약 정보 요약 */}
           <ReservationSummary
             room={room}
-            selectedDate={selectedDate}
-            selectedTime={formData.selectedTime || selectedTime}
+            selectedDate={summaryDate}
+            selectedTime={summaryTime}
           />
 
           {/* 기존 예약 정보 */}
-          {existingReservations.length > 0 && (
+          {mode !== 'edit' && existingReservations.length > 0 && (
             <div>
               <Label className="text-sm font-medium text-gray-700">
                 해당 날짜의 기존 예약
@@ -212,10 +335,7 @@ export function ReservationModal({
             selectedTime={formData.selectedTime}
             onTimeSelect={time => {
               setFormData(prev => ({ ...prev, selectedTime: time }));
-              // 상위 컴포넌트에도 시간 변경 알림
-              if (onTimeChange) {
-                onTimeChange(time);
-              }
+              onTimeChange?.(time);
             }}
             isTimeReserved={isTimeReserved}
             showLegend={false}
@@ -247,21 +367,21 @@ export function ReservationModal({
                 name="attendees"
                 value={formData.attendees}
                 onChange={handleInputChange}
-                placeholder="참석자 이름을 입력하세요"
+                placeholder="참석자 이름을 입력하세요 (쉼표로 구분)"
                 className="mt-1"
               />
             </div>
 
             <div>
               <Label htmlFor="notes" className="text-sm font-medium">
-                메모
+                설명
               </Label>
               <Input
                 id="notes"
                 name="notes"
                 value={formData.notes}
                 onChange={handleInputChange}
-                placeholder="추가 메모를 입력하세요"
+                placeholder="회의 목적이나 주요 안건을 간단히 입력하세요"
                 className="mt-1"
               />
             </div>
@@ -276,10 +396,23 @@ export function ReservationModal({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClose}
+              disabled={submitting}
+            >
               취소
             </Button>
-            <Button type="submit">예약하기</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting
+                ? mode === 'edit'
+                  ? '수정 중…'
+                  : '예약 중…'
+                : mode === 'edit'
+                ? '수정하기'
+                : '예약하기'}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
