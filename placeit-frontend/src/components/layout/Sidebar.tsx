@@ -264,7 +264,7 @@ export function Sidebar({ activePage, userName = '홍길동' }: SidebarProps) {
   ] as const;
 
   return (
-    <aside className="w-64 bg-white text-gray-900 h-full overflow-y-auto relative border-r border-gray-200 min-w-64">
+    <aside className="w-76 bg-white text-gray-900 h-full overflow-y-auto relative border-r border-gray-200 min-w-64">
       <div className="p-6 pt-8 flex flex-col h-full">
         {/* 워크스페이스 섹션 */}
         <div className="mb-8">
