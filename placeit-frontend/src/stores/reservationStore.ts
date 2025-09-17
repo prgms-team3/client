@@ -269,7 +269,7 @@ export const useReservationStore = create<ReservationStore>()(
       },
     }),
     {
-      name: 'reservation-storage',
+      name: 'reservation-storage-v2',
       partialize: state => ({
         reservations: state.reservations,
         rooms: state.rooms,
