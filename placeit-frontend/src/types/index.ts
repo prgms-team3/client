@@ -18,7 +18,7 @@ export interface Reservation {
   time: string;
   endTime?: string;
   attendees: string[];
-  status: 'confirmed' | 'pending' | 'cancelled';
+  status: 'confirmed' | 'pending' | 'cancelled' | 'hidden';
 }
 
 export interface User {

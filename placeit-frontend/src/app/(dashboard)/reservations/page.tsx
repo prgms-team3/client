@@ -8,6 +8,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { ReservationModal } from '@/components/reservation/ReservationModal';
 import { useReservationStore } from '@/stores/reservationStore';
+import { useUserStore } from '@/stores/userStore';
 import { formatDateToString } from '@/lib/dateUtils';
 import { timeSlots } from '@/data/sampleData';
 import {
@@ -36,6 +37,8 @@ export default function ReservationsPage() {
     loading,
     clearError,
   } = useReservationStore();
+
+  const myUserId = useUserStore(s => s.user?.id);
 
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
@@ -77,11 +80,12 @@ export default function ReservationsPage() {
 
   // API의 상태 → UI 상태로 매핑
   const mapStatus = (
-    s: 'PENDING' | 'APPROVED' | 'REJECTED'
-  ): 'pending' | 'confirmed' | 'cancelled' => {
-    if (s === 'APPROVED') return 'confirmed';
-    if (s === 'REJECTED') return 'cancelled';
-    return 'pending';
+    s: 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED'
+  ): 'pending' | 'confirmed' | 'cancelled' | 'hidden' => {
+    if (s === 'APPROVED' || s === 'COMPLETED') return 'confirmed';
+    if (s === 'PENDING') return 'pending';
+    if (s === 'REJECTED') return 'hidden'; // 숨기기
+    return 'hidden'; // 그 외 알 수 없는 값도 숨김 처리
   };
 
   // 09:00 ~ 17:30 타임라인에서 상대 위치 계산
@@ -142,6 +146,7 @@ export default function ReservationsPage() {
                 .filter(Boolean)
             : [],
           status: mapStatus(r.status),
+          ownerId: r.userId ?? r.user?.id ?? null,
         }));
 
         setReservations(normalized);
@@ -766,74 +771,88 @@ export default function ReservationsPage() {
                           ).filter(r => r.date === selectedDateStr);
 
                           return dayReservations.map((r, idx) => {
+                            if ((r as any).status === 'hidden') return null; // 숨김 처리
+
                             const { top, height } = toBlockStyle(
                               (r as any).time,
                               (r as any).endTime
                             );
+
+                            const baseClasses =
+                              'group absolute left-2 right-2 rounded-md shadow-sm p-2 text-xs overflow-hidden';
+
+                            const colorClasses =
+                              (r as any).status === 'confirmed'
+                                ? 'border-l-4 border-blue-500 bg-blue-50'
+                                : 'border-l-4 border-gray-400 bg-gray-100';
+
                             return (
                               <div
                                 key={`${(r as any).id}-${idx}`}
-                                className="group absolute left-2 right-2 rounded-md border-l-4 border-blue-500 bg-blue-50 shadow-sm p-2 text-xs overflow-hidden"
+                                className={`${baseClasses} ${colorClasses}`}
                                 style={{ top, height }}
                                 title={`${(r as any).time} ~ ${
                                   (r as any).endTime || ''
                                 }`}
                               >
                                 {/* 액션 버튼 */}
-                                <div className="absolute top-1 right-1 z-10 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-6 w-6 rounded-md text-gray-700 hover:bg-blue-100 hover:text-blue-700"
-                                    aria-label="예약 수정"
-                                    onClick={e => {
-                                      e.stopPropagation();
-                                      handleEditClick(r);
-                                    }}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-6 w-6 rounded-md text-gray-700 hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
-                                    aria-label="예약 삭제"
-                                    disabled={
-                                      deletingId === String((r as any).id)
-                                    }
-                                    onClick={e => {
-                                      e.stopPropagation();
-                                      handleDeleteClick(r);
-                                    }}
-                                  >
-                                    {deletingId === String((r as any).id) ? (
-                                      <svg
-                                        className="h-3.5 w-3.5 animate-spin"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <circle
-                                          cx="12"
-                                          cy="12"
-                                          r="10"
-                                          stroke="currentColor"
-                                          strokeWidth="3"
-                                          fill="none"
-                                          className="opacity-30"
-                                        />
-                                        <path
-                                          d="M12 2a10 10 0 0 1 10 10"
-                                          stroke="currentColor"
-                                          strokeWidth="3"
-                                          fill="none"
-                                        />
-                                      </svg>
-                                    ) : (
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    )}
-                                  </Button>
-                                </div>
+                                {String((r as any).ownerId ?? '') ===
+                                  String(myUserId ?? '') && (
+                                  <div className="absolute top-1 right-1 z-10 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6 rounded-md text-gray-700 hover:bg-blue-100 hover:text-blue-700"
+                                      aria-label="예약 수정"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        handleEditClick(r);
+                                      }}
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6 rounded-md text-gray-700 hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
+                                      aria-label="예약 삭제"
+                                      disabled={
+                                        deletingId === String((r as any).id)
+                                      }
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        handleDeleteClick(r);
+                                      }}
+                                    >
+                                      {deletingId === String((r as any).id) ? (
+                                        <svg
+                                          className="h-3.5 w-3.5 animate-spin"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <circle
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            stroke="currentColor"
+                                            strokeWidth="3"
+                                            fill="none"
+                                            className="opacity-30"
+                                          />
+                                          <path
+                                            d="M12 2a10 10 0 0 1 10 10"
+                                            stroke="currentColor"
+                                            strokeWidth="3"
+                                            fill="none"
+                                          />
+                                        </svg>
+                                      ) : (
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                )}
 
-                                <div className="font-semibold truncate">
+                                <div className="font-semibold text-sm truncate">
                                   {(r as any).title}
                                 </div>
                                 <div className="text-[11px] text-gray-600 truncate">
@@ -842,6 +861,12 @@ export default function ReservationsPage() {
                                     ? ` - ${(r as any).endTime}`
                                     : ''}
                                 </div>
+                                {Array.isArray((r as any).attendees) &&
+                                  (r as any).attendees.length > 0 && (
+                                    <div className="text-[11px] text-gray-500 truncate mt-1">
+                                      참석자: {(r as any).attendees.join(', ')}
+                                    </div>
+                                  )}
                               </div>
                             );
                           });
@@ -1062,72 +1087,87 @@ export default function ReservationsPage() {
                           {/* 예약 블록들 */}
                           <div className="absolute inset-0 z-20">
                             {dayReservations.map((r, idx) => {
+                              if ((r as any).status === 'hidden') return null; // 숨김 처리
+
                               const { top, height } = toBlockStyle(
                                 (r as any).time,
                                 (r as any).endTime
                               );
+
+                              const baseClasses =
+                                'group absolute left-2 right-2 rounded-md shadow-sm p-2 text-xs overflow-hidden';
+
+                              const colorClasses =
+                                (r as any).status === 'confirmed'
+                                  ? 'border-l-4 border-blue-500 bg-blue-50'
+                                  : 'border-l-4 border-gray-400 bg-gray-100';
+
                               return (
                                 <div
                                   key={`${(r as any).id}-${idx}`}
-                                  className="group absolute left-1 right-1 rounded-md border-l-4 border-blue-500 bg-blue-50 shadow-sm p-2 text-xs overflow-hidden"
+                                  className={`${baseClasses} ${colorClasses}`}
                                   style={{ top, height }}
                                   title={`${(r as any).time} ~ ${
                                     (r as any).endTime || ''
                                   }`}
                                 >
                                   {/* 액션 버튼 */}
-                                  <div className="absolute top-1 right-1 z-10 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="h-6 w-6 rounded-md text-gray-700 hover:bg-blue-100 hover:text-blue-700"
-                                      aria-label="예약 수정"
-                                      onClick={e => {
-                                        e.stopPropagation();
-                                        handleEditClick(r);
-                                      }}
-                                    >
-                                      <Pencil className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="h-6 w-6 rounded-md text-gray-700 hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
-                                      aria-label="예약 삭제"
-                                      disabled={
-                                        deletingId === String((r as any).id)
-                                      }
-                                      onClick={e => {
-                                        e.stopPropagation();
-                                        handleDeleteClick(r);
-                                      }}
-                                    >
-                                      {deletingId === String((r as any).id) ? (
-                                        <svg
-                                          className="h-3.5 w-3.5 animate-spin"
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <circle
-                                            cx="12"
-                                            cy="12"
-                                            r="10"
-                                            stroke="currentColor"
-                                            strokeWidth="3"
-                                            fill="none"
-                                            className="opacity-30"
-                                          />
-                                          <path
-                                            d="M12 2a10 10 0 0 1 10 10"
-                                            stroke="currentColor"
-                                            strokeWidth="3"
-                                            fill="none"
-                                          />
-                                        </svg>
-                                      ) : (
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      )}
-                                    </Button>
-                                  </div>
+                                  {String((r as any).ownerId ?? '') ===
+                                    String(myUserId ?? '') && (
+                                    <div className="absolute top-1 right-1 z-10 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-6 w-6 rounded-md text-gray-700 hover:bg-blue-100 hover:text-blue-700"
+                                        aria-label="예약 수정"
+                                        onClick={e => {
+                                          e.stopPropagation();
+                                          handleEditClick(r);
+                                        }}
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-6 w-6 rounded-md text-gray-700 hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
+                                        aria-label="예약 삭제"
+                                        disabled={
+                                          deletingId === String((r as any).id)
+                                        }
+                                        onClick={e => {
+                                          e.stopPropagation();
+                                          handleDeleteClick(r);
+                                        }}
+                                      >
+                                        {deletingId ===
+                                        String((r as any).id) ? (
+                                          <svg
+                                            className="h-3.5 w-3.5 animate-spin"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <circle
+                                              cx="12"
+                                              cy="12"
+                                              r="10"
+                                              stroke="currentColor"
+                                              strokeWidth="3"
+                                              fill="none"
+                                              className="opacity-30"
+                                            />
+                                            <path
+                                              d="M12 2a10 10 0 0 1 10 10"
+                                              stroke="currentColor"
+                                              strokeWidth="3"
+                                              fill="none"
+                                            />
+                                          </svg>
+                                        ) : (
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        )}
+                                      </Button>
+                                    </div>
+                                  )}
 
                                   <div className="font-semibold text-sm truncate">
                                     {(r as any).title}
