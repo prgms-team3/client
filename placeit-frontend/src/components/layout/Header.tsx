@@ -26,6 +26,7 @@ function WorkspaceToggle() {
     hardRefresh,
     bindToUser,
   } = useWorkspaceStore();
+
   const selected = list.find(w => w.id === currentId) ?? list[0];
 
   React.useEffect(() => {
@@ -63,7 +64,7 @@ function WorkspaceToggle() {
           <ChevronsUpDown className="h-4 w-4 opacity-40" />
         </button>
 
-        {/* 필요할 때만 강제 새로고침(UX용) */}
+        {/* 필요할 때만 강제 새로고침(UX용)
         <button
           type="button"
           onClick={() => {
@@ -74,7 +75,7 @@ function WorkspaceToggle() {
           title="워크스페이스 목록 새로고침"
         >
           <RefreshCw className="h-4 w-4" />
-        </button>
+        </button> */}
       </div>
 
       {open && list.length > 0 && (
@@ -107,6 +108,17 @@ function WorkspaceToggle() {
   );
 }
 
+function isWorkspaceAdmin(workspaceRole?: string, globalRole?: string) {
+  const w = (workspaceRole ?? '').toUpperCase(); // 'SUPER_ADMIN' | 'ADMIN' | 'MEMBER' ...
+  const g = (globalRole ?? '').toUpperCase(); // 'admin' | 'user'
+  const adminSet = new Set(['ADMIN', 'SUPER_ADMIN']);
+  return adminSet.has(w) || adminSet.has(g);
+}
+
+function roleKoreanLabel(workspaceRole?: string, globalRole?: string) {
+  return isWorkspaceAdmin(workspaceRole, globalRole) ? '관리자' : '사용자';
+}
+
 export function Header() {
   const router = useRouter();
   const { user } = useUserStore();
@@ -115,6 +127,12 @@ export function Header() {
   const { list, currentId } = useWorkspaceStore();
   const selected = list.find(w => w.id === currentId) ?? list[0];
   const inviteCode = selected?.activeInvitationCode ?? '초대코드 없음';
+
+  const workspaceRole: string | undefined =
+    (selected as any)?.userRole ?? (selected as any)?.role ?? undefined;
+
+  const isAdmin = isWorkspaceAdmin(workspaceRole, user?.role);
+  const roleLabel = roleKoreanLabel(workspaceRole, user?.role);
 
   const handleCopy = () => {
     if (inviteCode) {
@@ -152,12 +170,8 @@ export function Header() {
         {/* 오른쪽: 사용자/초대코드/로그아웃 */}
         <div className="flex items-center gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <span
-              className={`${
-                user?.role === 'admin' ? 'text-red-600' : 'text-blue-600'
-              }`}
-            >
-              {user?.name} ({user?.role === 'admin' ? '관리자' : '사용자'})
+            <span className={`${isAdmin ? 'text-red-600' : 'text-blue-600'}`}>
+              {user?.name} ({roleLabel})
             </span>
             <span className="text-gray-400">|</span>
             <div className="flex items-center">
