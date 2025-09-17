@@ -26,6 +26,7 @@ export interface User {
 }
 
 interface UserStore {
+  id?: number;
   user: User | null;
   accessToken: string | null;
 

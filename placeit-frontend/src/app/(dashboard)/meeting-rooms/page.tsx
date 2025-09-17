@@ -21,11 +21,9 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 type RoomFilter = 'all' | Extract<Status, 'available' | 'unavailable'>;
 type ApprovalPolicy = 'auto' | 'approval_required';
 
-// 기본 이미지
 const DEFAULT_IMAGE =
   'https://images.unsplash.com/photo-1497366216548-37526070297c';
 
-// 서버 응답 타입
 type ApiSpace = {
   id: number;
   workspaceId: number;
@@ -45,7 +43,6 @@ type ApiSpace = {
   size?: number;
 };
 
-// MeetingRoomCard props + id + 승인정책
 type Room = MeetingRoomCardProps & {
   id: string;
   approvalPolicy: ApprovalPolicy;
@@ -58,7 +55,6 @@ const FILTERS: FilterItem<RoomFilter>[] = [
   { key: 'unavailable', label: '사용 중지' },
 ];
 
-// UI 매핑
 function mapApiToRoom(api: ApiSpace, imageUrl: string = DEFAULT_IMAGE): Room {
   return {
     id: String(api.id),
@@ -76,16 +72,26 @@ function mapApiToRoom(api: ApiSpace, imageUrl: string = DEFAULT_IMAGE): Room {
   };
 }
 
+type ApiWorkspaceUser = {
+  id: number;
+  workspaceId: number;
+  userId: number | string;
+  role: 'SUPER_ADMIN' | 'ADMIN' | 'MEMBER';
+};
+
 export default function MeetingRoomsPage() {
   const [q, setQ] = React.useState('');
   const [k, setK] = React.useState<RoomFilter>('all');
   const [rooms, setRooms] = React.useState<Room[]>([]);
 
-  // 수정 다이얼로그 상태
+  // 권한
+  const [canManage, setCanManage] = React.useState(false);
+
+  // 수정 다이얼로그
   const [editOpen, setEditOpen] = React.useState(false);
   const [editTarget, setEditTarget] = React.useState<Room | null>(null);
 
-  // 워크스페이스 ID 확보
+  // 워크스페이스
   const currentId = useWorkspaceStore(s => s.currentId);
   const refreshIfStale = useWorkspaceStore(s => s.refreshIfStale);
 
@@ -98,7 +104,54 @@ export default function MeetingRoomsPage() {
       ? Number(currentId)
       : null;
 
-  // 목록 불러오기
+  // 내 역할 계산
+  React.useEffect(() => {
+    const loadRole = async () => {
+      if (!workspaceId) return;
+
+      try {
+        // 1) localStorage에서 내 userId 읽기
+        const raw =
+          typeof window !== 'undefined'
+            ? localStorage.getItem('user-storage')
+            : null;
+        if (!raw) {
+          setCanManage(false);
+          return;
+        }
+        let myUserId: string | null = null;
+        try {
+          const parsed = JSON.parse(raw);
+          const id = parsed?.state?.user?.id;
+          if (id === undefined || id === null) {
+            setCanManage(false);
+            return;
+          }
+          myUserId = String(id);
+        } catch {
+          setCanManage(false);
+          return;
+        }
+
+        // 2) 워크스페이스 사용자 배열
+        const { data } = await api.get<ApiWorkspaceUser[]>(
+          `/workspaces/${workspaceId}/users`
+        );
+
+        // 3) 내 role 찾기
+        const mine = data.find(u => String(u.userId) === myUserId);
+        const role = mine?.role ?? 'MEMBER';
+
+        // 4) 권한 여부
+        setCanManage(role === 'SUPER_ADMIN' || role === 'ADMIN');
+      } catch {
+        setCanManage(false);
+      }
+    };
+    loadRole();
+  }, [workspaceId]);
+
+  // 회의실 목록
   React.useEffect(() => {
     const fetchRooms = async () => {
       if (!workspaceId) return;
@@ -106,11 +159,9 @@ export default function MeetingRoomsPage() {
         const { data } = await api.get<{ spaces: ApiSpace[]; total: number }>(
           `/workspaces/${workspaceId}/spaces`
         );
-        const mapped = data.spaces.map(s => {
-          const image =
-            s.images && s.images.length > 0 ? s.images[0] : DEFAULT_IMAGE;
-          return mapApiToRoom(s, image);
-        });
+        const mapped = data.spaces.map(s =>
+          mapApiToRoom(s, s.images?.[0] ?? DEFAULT_IMAGE)
+        );
         setRooms(mapped);
       } catch (err) {
         console.error('회의실 목록 불러오기 실패', err);
@@ -146,6 +197,7 @@ export default function MeetingRoomsPage() {
 
   // 생성
   const handleAddRoom = async (form: NewRoom) => {
+    if (!canManage) return;
     try {
       if (workspaceId == null) {
         alert('워크스페이스를 먼저 선택해 주세요.');
@@ -163,21 +215,20 @@ export default function MeetingRoomsPage() {
         `/workspaces/${workspaceId}/spaces`,
         payload
       );
-      const image =
-        data.images && data.images.length > 0 ? data.images[0] : DEFAULT_IMAGE;
-      const created = mapApiToRoom(data, image);
+      const created = mapApiToRoom(data, data.images?.[0] ?? DEFAULT_IMAGE);
       setRooms(prev => [created, ...prev]);
     } catch (err: any) {
-      const msg =
+      alert(
         err?.response?.data?.message ||
-        err?.message ||
-        '회의실 생성 중 오류가 발생했습니다.';
-      alert(msg);
+          err?.message ||
+          '회의실 생성 중 오류가 발생했습니다.'
+      );
     }
   };
 
   // 사용 시작/중지
   const toggleActive = async (roomId: string) => {
+    if (!canManage) return;
     if (workspaceId == null) {
       alert('워크스페이스를 먼저 선택해 주세요.');
       return;
@@ -202,16 +253,17 @@ export default function MeetingRoomsPage() {
       await api.patch(endpoint);
     } catch (err: any) {
       setRooms(prevRooms);
-      const msg =
+      alert(
         err?.response?.data?.message ||
-        err?.message ||
-        '상태 변경 중 오류가 발생했습니다.';
-      alert(msg);
+          err?.message ||
+          '상태 변경 중 오류가 발생했습니다.'
+      );
     }
   };
 
   // 삭제
   const handleDelete = async (roomId: string) => {
+    if (!canManage) return;
     if (workspaceId == null) {
       alert('워크스페이스를 먼저 선택해 주세요.');
       return;
@@ -225,22 +277,23 @@ export default function MeetingRoomsPage() {
       await api.delete(`/workspaces/${workspaceId}/spaces/${roomId}`);
     } catch (err: any) {
       setRooms(prev);
-      const msg =
+      alert(
         err?.response?.data?.message ||
-        err?.message ||
-        '회의실 삭제 중 오류가 발생했습니다.';
-      alert(msg);
+          err?.message ||
+          '회의실 삭제 중 오류가 발생했습니다.'
+      );
     }
   };
 
-  // 수정 버튼 클릭 → 대상 세팅 & 다이얼로그 오픈
+  // 수정 열기/저장
   const openEditDialog = (room: Room) => {
+    if (!canManage) return;
     setEditTarget(room);
     setEditOpen(true);
   };
 
-  // 수정 저장
   const handleEditRoomSave = async (form: NewRoom) => {
+    if (!canManage) return;
     if (workspaceId == null || !editTarget) {
       alert('워크스페이스 혹은 대상 회의실이 없습니다.');
       return;
@@ -254,43 +307,32 @@ export default function MeetingRoomsPage() {
         requiresApproval: form.requiresApproval,
         amenities: form.amenities,
       };
-
       const { data } = await api.patch<ApiSpace>(
         `/workspaces/${workspaceId}/spaces/${editTarget.id}`,
         payload
       );
-
-      const image =
-        data.images && data.images.length > 0
-          ? data.images[0]
-          : 'https://images.unsplash.com/photo-1497366216548-37526070297c';
-
-      const updated = mapApiToRoom(data, image);
-
+      const updated = mapApiToRoom(data, data.images?.[0] ?? DEFAULT_IMAGE);
       setRooms(prev =>
         prev.map(r => (r.id === editTarget.id ? { ...updated } : r))
       );
-
       setEditOpen(false);
       setEditTarget(null);
     } catch (err: any) {
-      const msg =
+      alert(
         err?.response?.data?.message ||
-        err?.message ||
-        '회의실 수정 중 오류가 발생했습니다.';
-      alert(msg);
+          err?.message ||
+          '회의실 수정 중 오류가 발생했습니다.'
+      );
     }
   };
 
-  // 현재 수정 다이얼로그에 넣을 초기값
   const editInitial: NewRoom | undefined = editTarget
     ? {
         name: editTarget.name,
         description: editTarget.description,
         location: editTarget.location,
         capacity: editTarget.capacity,
-        requiresApproval:
-          editTarget.approvalPolicy === 'approval_required' ? true : false,
+        requiresApproval: editTarget.approvalPolicy === 'approval_required',
         amenities: editTarget.facilities,
       }
     : undefined;
@@ -308,7 +350,8 @@ export default function MeetingRoomsPage() {
               회의실 현황을 관리하고 설정을 변경하세요
             </p>
           </div>
-          <AddMeetingRoomDialog onAdd={handleAddRoom} />
+          {/* 관리자에게만 생성 버튼 */}
+          {canManage && <AddMeetingRoomDialog onAdd={handleAddRoom} />}
         </div>
 
         {/* 통계 */}
@@ -355,6 +398,7 @@ export default function MeetingRoomsPage() {
             <MeetingRoomCard
               key={room.id}
               {...room}
+              canManage={canManage}
               onToggleActive={() => toggleActive(room.id)}
               onDelete={() => handleDelete(room.id)}
               onEdit={() => openEditDialog(room)}
@@ -362,7 +406,7 @@ export default function MeetingRoomsPage() {
           ))}
         </div>
 
-        {/* 수정 다이얼로그: 생성 컴포넌트 재사용 */}
+        {/* 수정 다이얼로그 */}
         <AddMeetingRoomDialog
           mode="edit"
           open={editOpen}

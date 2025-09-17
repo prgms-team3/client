@@ -33,13 +33,14 @@ export interface MeetingRoomCardProps {
   capacity: number;
   monthlyReservations: number;
   utilizationRate: number;
-  status: Status; // 실제로는 available/unavailable만 사용
+  status: Status;
   facilities: AmenityKey[];
   imageUrl: string;
   onToggleActive?: () => void;
   onDelete?: () => void;
-  onEdit?: () => void; // ← 추가
+  onEdit?: () => void;
   approvalPolicy?: 'auto' | 'approval_required';
+  canManage?: boolean;
 }
 
 const facilityMap: Record<
@@ -91,6 +92,7 @@ export default function MeetingRoomCard({
   onDelete,
   onEdit,
   approvalPolicy = 'auto',
+  canManage = false,
 }: MeetingRoomCardProps) {
   const isActive = status === 'available';
 
@@ -117,7 +119,7 @@ export default function MeetingRoomCard({
 
       {/* 본문 */}
       <div className="mt-4">
-        {/* 승인 여부 */}
+        {/* 승인 여부 뱃지 */}
         <span
           className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${approvalBadgeClass(
             approvalPolicy
@@ -129,22 +131,26 @@ export default function MeetingRoomCard({
         {/* 제목/액션 */}
         <div className="mt-1 mb-1 flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">{name}</h2>
-          <div className="flex gap-2">
-            <button
-              className="p-1 text-gray-500 hover:text-gray-800"
-              aria-label="수정"
-              onClick={onEdit}
-            >
-              <Edit2 className="h-4 w-4" />
-            </button>
-            <button
-              className="p-1 text-red-500 hover:text-red-700"
-              aria-label="삭제"
-              onClick={onDelete}
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
+
+          {/* 관리자만 수정/삭제 */}
+          {canManage && (
+            <div className="flex gap-2">
+              <button
+                className="p-1 text-gray-500 hover:text-gray-800"
+                aria-label="수정"
+                onClick={onEdit}
+              >
+                <Edit2 className="h-4 w-4" />
+              </button>
+              <button
+                className="p-1 text-red-500 hover:text-red-700"
+                aria-label="삭제"
+                onClick={onDelete}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         <p className="text-sm text-gray-500">{description}</p>
@@ -183,17 +189,19 @@ export default function MeetingRoomCard({
           })}
         </div>
 
-        {/* 하단 버튼 */}
-        <div className="mt-4 flex gap-2">
-          <Button
-            variant={isActive ? 'destructive' : 'default'}
-            size="lg"
-            onClick={onToggleActive}
-            aria-label={isActive ? '사용 중지' : '사용 시작'}
-          >
-            {isActive ? '사용 중지' : '사용 시작'}
-          </Button>
-        </div>
+        {/* 사용 중지/시작 버튼 */}
+        {canManage && (
+          <div className="mt-4 flex gap-2">
+            <Button
+              variant={isActive ? 'destructive' : 'default'}
+              size="lg"
+              onClick={onToggleActive}
+              aria-label={isActive ? '사용 중지' : '사용 시작'}
+            >
+              {isActive ? '사용 중지' : '사용 시작'}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
