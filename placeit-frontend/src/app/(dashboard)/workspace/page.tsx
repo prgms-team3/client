@@ -15,6 +15,7 @@ import {
   deleteWorkspace,
   activateWorkspace,
   deactivateWorkspace,
+  leaveWorkspace,
 } from '@/services/workspaces';
 import { useUserStore } from '@/stores/userStore';
 
@@ -238,6 +239,20 @@ export default function WorkspacesPage() {
     }
   };
 
+  // 나가기
+  const handleLeave = async (id: string) => {
+    if (!confirm('이 워크스페이스에서 나가시겠습니까?')) return;
+    const snapshot = workspaces;
+    setWorkspaces(prev => prev.filter(w => w.id !== id));
+    try {
+      await leaveWorkspace(id);
+      void softRefetch();
+    } catch (err: unknown) {
+      alert(getMsg(err));
+      setWorkspaces(snapshot);
+    }
+  };
+
   return (
     <MainLayout activePage="workspaces">
       <div className="space-y-6 p-6">
@@ -309,6 +324,7 @@ export default function WorkspacesPage() {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onToggleStatus={handleToggleStatus}
+                onLeave={handleLeave}
                 canManage={w.canManage}
               />
             ))}

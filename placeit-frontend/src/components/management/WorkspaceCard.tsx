@@ -22,6 +22,7 @@ export type WorkspaceCardProps = {
   onDelete?: (id: string) => void;
   onCopyInvite?: (inviteCode: string) => void;
   onToggleStatus?: (id: string, next: WorkspaceStatus) => void;
+  onLeave?: (id: string) => void;
 };
 
 export default function WorkspaceCard({
@@ -38,6 +39,7 @@ export default function WorkspaceCard({
   onDelete,
   onCopyInvite,
   onToggleStatus,
+  onLeave,
 }: WorkspaceCardProps) {
   const [copied, setCopied] = React.useState(false);
   const isActive = status === 'active';
@@ -141,8 +143,9 @@ export default function WorkspaceCard({
           </div>
         </div>
 
-        {canManage && (
-          <div className="mt-4 flex justify-end">
+        {/* 버튼 영역 */}
+        <div className="mt-4 flex justify-end gap-2">
+          {canManage ? (
             <Button
               onClick={handleToggle}
               variant={isActive ? 'destructive' : 'default'}
@@ -150,8 +153,16 @@ export default function WorkspaceCard({
             >
               {isActive ? '비활성화' : '활성화'}
             </Button>
-          </div>
-        )}
+          ) : (
+            <Button
+              onClick={() => onLeave?.(id)}
+              variant="outline"
+              className="border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              나가기
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
