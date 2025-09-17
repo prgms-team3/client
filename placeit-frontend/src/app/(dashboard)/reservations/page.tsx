@@ -10,10 +10,18 @@ import { ReservationModal } from '@/components/reservation/ReservationModal';
 import { useReservationStore } from '@/stores/reservationStore';
 import { formatDateToString } from '@/lib/dateUtils';
 import { timeSlots } from '@/data/sampleData';
-import { ChevronLeft, ChevronRight, Filter, Check } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Check,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
 import { fetchWorkspaceReservations } from '@/services/reservations';
 import { useActiveWorkspaceId } from '@/lib/workspaceId';
 import { api } from '@/lib/axios';
+import { deleteReservation } from '@/services/reservations';
 
 export default function ReservationsPage() {
   const {
@@ -34,8 +42,10 @@ export default function ReservationsPage() {
   const [modalSelectedTime, setModalSelectedTime] = useState<string>('');
   const currentWsId = useActiveWorkspaceId();
   const [myOnly, setMyOnly] = useState<boolean>(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<any | null>(null);
 
-  // 서버에서 가져오는 공간(회의실) 목록
+  // 서버에서 가져오는 회의실 목록
   type SpaceLite = {
     id: number;
     name: string;
@@ -103,20 +113,17 @@ export default function ReservationsPage() {
         let apiList: any[] = [];
 
         if (myOnly) {
-          // 내 예약만
           const { data } = await api.get('/reservations/my');
           const list = Array.isArray(data) ? data : data?.reservations ?? [];
-          // 현재 워크스페이스에 속한 예약만 남김 (space.workspaceId 또는 space.workspace.id 중 있는 값 사용)
           const wsIdNum = Number(currentWsId);
           apiList = list.filter((r: any) => {
             const s = r.space ?? {};
             const wid = Number(
               s.workspaceId ?? s.workspace?.id ?? r.workspaceId ?? NaN
             );
-            return Number.isFinite(wid) ? wid === wsIdNum : true; // 공간 정보가 없으면 보수적으로 포함
+            return Number.isFinite(wid) ? wid === wsIdNum : true;
           });
         } else {
-          // 워크스페이스 전체
           apiList = await fetchWorkspaceReservations(currentWsId);
         }
 
@@ -179,7 +186,6 @@ export default function ReservationsPage() {
     setModalSelectedTime('');
     setShowReservationModal(true);
   };
-  const handleCloseModal = () => setShowReservationModal(false);
 
   // 새로운 예약 추가
   const handleAddReservation = async (created: any) => {
@@ -217,6 +223,84 @@ export default function ReservationsPage() {
     });
 
     if (success) setShowReservationModal(false);
+  };
+
+  // 예약 수정
+  const handleEditClick = (r: any) => {
+    setEditing(r);
+    setModalSelectedTime(r.time);
+    setShowReservationModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowReservationModal(false);
+    setEditing(null);
+  };
+
+  const handleUpdateReservation = (updated: any) => {
+    const toDateStr = (iso: string) => {
+      const d = new Date(iso);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+        2,
+        '0'
+      )}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    const toTime = (iso: string) => {
+      const d = new Date(iso);
+      return `${String(d.getHours()).padStart(2, '0')}:${String(
+        d.getMinutes()
+      ).padStart(2, '0')}`;
+    };
+
+    const mapped = {
+      id: String(updated.id),
+      title: updated.purpose, // 목적 → 타이틀
+      room: editing?.room ?? updated.space?.name ?? `공간#${updated.spaceId}`,
+      roomId: editing?.roomId ?? String(updated.space?.id ?? updated.spaceId),
+      date: toDateStr(updated.startTime),
+      time: toTime(updated.startTime),
+      endTime: toTime(updated.endTime),
+      attendees: (updated.attendees ?? '')
+        .split(',')
+        .map((s: string) => s.trim())
+        .filter(Boolean),
+      status: (() => {
+        if (updated.status === 'APPROVED') return 'confirmed';
+        if (updated.status === 'REJECTED') return 'cancelled';
+        return 'pending';
+      })(),
+    };
+
+    const next = reservations.map((x: any) =>
+      String(x.id) === String(mapped.id) ? { ...x, ...mapped } : x
+    );
+    setReservations(next);
+
+    setShowReservationModal(false);
+    setEditing(null);
+  };
+
+  // 얘약 삭제
+  const handleDeleteClick = async (r: any) => {
+    try {
+      const id = String(r?.id ?? '');
+      if (!id) return;
+
+      const ok = window.confirm('이 예약을 삭제할까요?');
+      if (!ok) return;
+
+      setDeletingId(id);
+
+      await deleteReservation(id);
+
+      const next = reservations.filter(x => String((x as any).id) !== id);
+      setReservations(next);
+    } catch (e: any) {
+      console.error('예약 삭제 실패', e);
+      alert(e?.response?.data?.message ?? '삭제 중 오류가 발생했습니다.');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   // UI용 '고유' 예약 배열
@@ -633,7 +717,6 @@ export default function ReservationsPage() {
 
                 {/* 시간대별 예약 현황 */}
                 <div className="border rounded-lg">
-                  {/* 전체 행 높이: 30분 x 17칸 = h-12(3rem) * 17 */}
                   <div className="grid grid-cols-[80px_1fr]">
                     {/* 왼쪽: 시간 라벨 */}
                     <div className="relative">
@@ -651,12 +734,12 @@ export default function ReservationsPage() {
                       })}
                     </div>
 
-                    {/* 오른쪽: 타임라인(배경 라인 + 예약 블록 + 클릭 레이어) */}
+                    {/* 오른쪽: 타임라인 */}
                     <div
                       className="relative"
                       style={{ height: `calc(17 * 3rem)` }}
                     >
-                      {/* 배경 그리드 라인 */}
+                      {/* 배경 그리드 라인 (hover 방해 안 함) */}
                       <div className="absolute inset-0 pointer-events-none">
                         {Array.from({ length: 17 }, (_, i) => (
                           <div
@@ -666,8 +749,8 @@ export default function ReservationsPage() {
                         ))}
                       </div>
 
-                      {/* 예약 블록들 (1건=1블록) */}
-                      <div className="absolute inset-0 px-2">
+                      {/* 예약 블록들 - 가장 위 (z-20) */}
+                      <div className="absolute inset-0 px-2 z-20">
                         {(() => {
                           const selectedDateStr =
                             selectedDate instanceof Date
@@ -690,12 +773,66 @@ export default function ReservationsPage() {
                             return (
                               <div
                                 key={`${(r as any).id}-${idx}`}
-                                className="absolute left-2 right-2 rounded-md border-l-4 border-blue-500 bg-blue-50 shadow-sm p-2 text-xs overflow-hidden"
+                                className="group absolute left-2 right-2 rounded-md border-l-4 border-blue-500 bg-blue-50 shadow-sm p-2 text-xs overflow-hidden"
                                 style={{ top, height }}
                                 title={`${(r as any).time} ~ ${
                                   (r as any).endTime || ''
                                 }`}
                               >
+                                {/* 액션 버튼 */}
+                                <div className="absolute top-1 right-1 z-10 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6 rounded-md text-gray-700 hover:bg-blue-100 hover:text-blue-700"
+                                    aria-label="예약 수정"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      handleEditClick(r);
+                                    }}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6 rounded-md text-gray-700 hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
+                                    aria-label="예약 삭제"
+                                    disabled={
+                                      deletingId === String((r as any).id)
+                                    }
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      handleDeleteClick(r);
+                                    }}
+                                  >
+                                    {deletingId === String((r as any).id) ? (
+                                      <svg
+                                        className="h-3.5 w-3.5 animate-spin"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <circle
+                                          cx="12"
+                                          cy="12"
+                                          r="10"
+                                          stroke="currentColor"
+                                          strokeWidth="3"
+                                          fill="none"
+                                          className="opacity-30"
+                                        />
+                                        <path
+                                          d="M12 2a10 10 0 0 1 10 10"
+                                          stroke="currentColor"
+                                          strokeWidth="3"
+                                          fill="none"
+                                        />
+                                      </svg>
+                                    ) : (
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    )}
+                                  </Button>
+                                </div>
+
                                 <div className="font-semibold truncate">
                                   {(r as any).title}
                                 </div>
@@ -711,8 +848,8 @@ export default function ReservationsPage() {
                         })()}
                       </div>
 
-                      {/* 클릭 레이어: 30분 단위로 모달 오픈 (과거 시간 잠금 유지) */}
-                      <div className="absolute inset-0">
+                      {/* 클릭 레이어 - 블록보다 아래 (z-10) */}
+                      <div className="absolute inset-0 z-10">
                         {Array.from({ length: 17 }, (_, i) => {
                           const hour = Math.floor(i / 2) + 9;
                           const minute = i % 2 === 0 ? '00' : '30';
@@ -910,9 +1047,9 @@ export default function ReservationsPage() {
                           } ${
                             isPastDay ? 'opacity-50 pointer-events-none' : ''
                           }`}
-                          style={{ height: `calc(17 * 3rem)` }} // h-12(=3rem) * 17칸과 동일한 총 높이
+                          style={{ height: `calc(17 * 3rem)` }}
                         >
-                          {/* 배경 그리드 (30분 간격 라인) */}
+                          {/* 배경 그리드 */}
                           <div className="absolute inset-0 pointer-events-none">
                             {Array.from({ length: 17 }, (_, i) => (
                               <div
@@ -923,7 +1060,7 @@ export default function ReservationsPage() {
                           </div>
 
                           {/* 예약 블록들 */}
-                          <div className="absolute inset-0">
+                          <div className="absolute inset-0 z-20">
                             {dayReservations.map((r, idx) => {
                               const { top, height } = toBlockStyle(
                                 (r as any).time,
@@ -932,12 +1069,66 @@ export default function ReservationsPage() {
                               return (
                                 <div
                                   key={`${(r as any).id}-${idx}`}
-                                  className="absolute left-1 right-1 rounded-md border-l-4 border-blue-500 bg-blue-50 shadow-sm p-2 text-xs overflow-hidden"
+                                  className="group absolute left-1 right-1 rounded-md border-l-4 border-blue-500 bg-blue-50 shadow-sm p-2 text-xs overflow-hidden"
                                   style={{ top, height }}
                                   title={`${(r as any).time} ~ ${
                                     (r as any).endTime || ''
                                   }`}
                                 >
+                                  {/* 액션 버튼 */}
+                                  <div className="absolute top-1 right-1 z-10 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6 rounded-md text-gray-700 hover:bg-blue-100 hover:text-blue-700"
+                                      aria-label="예약 수정"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        handleEditClick(r);
+                                      }}
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6 rounded-md text-gray-700 hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
+                                      aria-label="예약 삭제"
+                                      disabled={
+                                        deletingId === String((r as any).id)
+                                      }
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        handleDeleteClick(r);
+                                      }}
+                                    >
+                                      {deletingId === String((r as any).id) ? (
+                                        <svg
+                                          className="h-3.5 w-3.5 animate-spin"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <circle
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            stroke="currentColor"
+                                            strokeWidth="3"
+                                            fill="none"
+                                            className="opacity-30"
+                                          />
+                                          <path
+                                            d="M12 2a10 10 0 0 1 10 10"
+                                            stroke="currentColor"
+                                            strokeWidth="3"
+                                            fill="none"
+                                          />
+                                        </svg>
+                                      ) : (
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      )}
+                                    </Button>
+                                  </div>
+
                                   <div className="font-semibold text-sm truncate">
                                     {(r as any).title}
                                   </div>
@@ -952,8 +1143,8 @@ export default function ReservationsPage() {
                             })}
                           </div>
 
-                          {/* 빈 영역 클릭으로 모달 열기 (셀 단위 클릭 유지) */}
-                          <div className="absolute inset-0">
+                          {/* 빈 영역 클릭 레이어 */}
+                          <div className="absolute inset-0 z-10">
                             {Array.from({ length: 17 }, (_, timeIndex) => {
                               const hour = Math.floor(timeIndex / 2) + 9;
                               const minute = timeIndex % 2 === 0 ? '00' : '30';
@@ -1018,15 +1209,32 @@ export default function ReservationsPage() {
         </Tabs>
       </div>
 
-      {/* 예약 모달 */}
+      {/* 모달 */}
       <ReservationModal
         isOpen={showReservationModal}
         onClose={handleCloseModal}
         onAddReservation={handleAddReservation}
+        onUpdateReservation={handleUpdateReservation}
         room={selectedRoomObj}
         selectedDate={selectedDate || undefined}
         selectedTime={modalSelectedTime}
         timeSlots={timeSlots}
+        mode={editing ? 'edit' : 'create'}
+        editingReservation={
+          editing
+            ? {
+                id: editing.id,
+                date: editing.date,
+                time: editing.time,
+                endTime: editing.endTime,
+                title: editing.title,
+                attendees: Array.isArray(editing.attendees)
+                  ? editing.attendees.join(', ')
+                  : editing.attendees ?? '',
+                notes: editing.notes ?? '',
+              }
+            : undefined
+        }
         existingReservations={
           selectedDate instanceof Date
             ? (filteredReservations as any[])
