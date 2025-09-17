@@ -214,7 +214,7 @@ export default function AddWorkspaceDialog({
                   type="url"
                   inputMode="url"
                   className="w-full rounded-md border px-3 py-2 pr-10 text-sm"
-                  placeholder="https://example.com/image.png"
+                  placeholder="예: https://example.com/room.jpg"
                   value={imageUrl}
                   onChange={e => {
                     setImageUrl(e.target.value);
@@ -224,9 +224,6 @@ export default function AddWorkspaceDialog({
                 />
                 <Link2 className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               </div>
-              <p className="mt-1 text-xs text-gray-500">
-                http(s)로 시작하는 공개 이미지 주소를 넣어주세요. (선택)
-              </p>
 
               {/* 미리보기 */}
               {showPreview ? (
