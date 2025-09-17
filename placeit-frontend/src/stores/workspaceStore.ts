@@ -2,7 +2,11 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { fetchMyWorkspaces } from '@/services/workspaces';
 
-export type WorkspaceLite = { id: string; name: string };
+export type WorkspaceLite = {
+  id: string;
+  name: string;
+  activeInvitationCode?: string | null;
+};
 
 interface WorkspaceState {
   ownerKey: string | null;
@@ -58,9 +62,18 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
         const data = await fetchMyWorkspaces(); // axios signal 미사용해도 무방
         const raw: any[] = Array.isArray(data) ? data : data?.workspaces ?? [];
+
         const visible = raw
           .filter(w => !w?.deleted)
-          .map(w => ({ id: String(w.id), name: w.name })) as WorkspaceLite[];
+          .map(
+            (w): WorkspaceLite => ({
+              id: String(w.id),
+              name: w.name,
+              // 서버 필드명이 다를 수 있어서 안전망 추가
+              activeInvitationCode:
+                w.activeInvitationCode ?? w.invitationCode ?? w.code ?? null,
+            })
+          );
 
         if (signal?.aborted) return;
 
@@ -81,9 +94,17 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
         const data = await fetchMyWorkspaces();
         const raw: any[] = Array.isArray(data) ? data : data?.workspaces ?? [];
+
         const visible = raw
           .filter(w => !w?.deleted)
-          .map(w => ({ id: String(w.id), name: w.name })) as WorkspaceLite[];
+          .map(
+            (w): WorkspaceLite => ({
+              id: String(w.id),
+              name: w.name,
+              activeInvitationCode:
+                w.activeInvitationCode ?? w.invitationCode ?? w.code ?? null,
+            })
+          );
 
         if (signal?.aborted) return;
 

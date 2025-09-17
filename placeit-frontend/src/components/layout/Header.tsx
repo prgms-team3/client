@@ -112,8 +112,14 @@ export function Header() {
   const { user } = useUserStore();
   const { logout, loading } = useLogout({ redirectTo: '/login' });
 
+  const { list, currentId } = useWorkspaceStore();
+  const selected = list.find(w => w.id === currentId) ?? list[0];
+  const inviteCode = selected?.activeInvitationCode ?? '초대코드 없음';
+
   const handleCopy = () => {
-    navigator.clipboard.writeText('STARTUP2024');
+    if (inviteCode) {
+      navigator.clipboard.writeText(inviteCode);
+    }
   };
 
   return (
@@ -143,7 +149,7 @@ export function Header() {
           <WorkspaceToggle />
         </div>
 
-        {/* 오른쪽: 사용자/초대코드/로그아웃 - 기존 유지 */}
+        {/* 오른쪽: 사용자/초대코드/로그아웃 */}
         <div className="flex items-center gap-4 text-sm">
           <div className="flex items-center gap-2">
             <span
@@ -155,7 +161,7 @@ export function Header() {
             </span>
             <span className="text-gray-400">|</span>
             <div className="flex items-center">
-              <span className="text-blue-600">STARTUP2024</span>
+              <span className="text-blue-600">{inviteCode}</span>
               <Button
                 variant="ghost"
                 size="sm"
