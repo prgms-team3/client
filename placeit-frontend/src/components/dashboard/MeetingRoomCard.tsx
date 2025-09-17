@@ -32,16 +32,24 @@ const AMENITY_MAP: Record<
   speaker: { label: '스피커', icon: Volume2 },
 };
 
+type RoomStatus =
+  | 'available'
+  | 'occupied'
+  | 'reserved'
+  | 'maintenance'
+  | 'unavailable'; // ← 추가
+
 interface MeetingRoomCardProps {
   name: string;
   description: string;
   capacity: number;
   features: string[];
-  status: 'available' | 'occupied' | 'reserved' | 'maintenance';
+  status: RoomStatus; // ← 타입에 포함
   imageUrl?: string;
   isSelected?: boolean;
   onSelect?: () => void;
   reservedTime?: string;
+  requiresApproval?: boolean;
 }
 
 export function MeetingRoomCard({
@@ -54,30 +62,32 @@ export function MeetingRoomCard({
   isSelected = false,
   onSelect,
   reservedTime,
+  requiresApproval = false,
 }: MeetingRoomCardProps) {
-  // 상수 정의
   const CARD_DIMENSIONS = {
     minHeight: 'min-h-[400px]',
     maxWidth: 'max-w-[280px]',
     imageHeight: 'h-48',
   } as const;
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: RoomStatus) => {
     switch (status) {
       case 'available':
         return 'bg-green-500';
       case 'occupied':
-        return 'bg-red-500';
+        return 'bg-orange-600';
       case 'reserved':
-        return 'bg-orange-500';
+        return 'bg-amber-500';
       case 'maintenance':
         return 'bg-yellow-500';
+      case 'unavailable': // ← 추가
+        return 'bg-red-600';
       default:
         return 'bg-gray-500';
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: RoomStatus) => {
     switch (status) {
       case 'available':
         return '사용 가능';
@@ -87,23 +97,28 @@ export function MeetingRoomCard({
         return '예약됨';
       case 'maintenance':
         return '점검 중';
+      case 'unavailable': // ← 추가
+        return '사용 불가능';
       default:
         return '알 수 없음';
     }
   };
 
+  const isClickable = status !== 'unavailable'; // 선택 막고 싶으면 사용
+
   return (
     <Card
       className={`w-full ${
         CARD_DIMENSIONS.maxWidth
-      } h-full hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col ${
-        CARD_DIMENSIONS.minHeight
-      } border-2 ${
+      } h-full hover:shadow-lg transition-all duration-200 ${
+        isClickable ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'
+      } flex flex-col ${CARD_DIMENSIONS.minHeight} border-2 ${
         isSelected
           ? 'border-blue-500 shadow-xl bg-blue-50 ring-4 ring-blue-200'
           : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
       }`}
-      onClick={onSelect}
+      onClick={isClickable ? onSelect : undefined}
+      aria-disabled={!isClickable}
     >
       <CardHeader className="relative pb-3">
         <div
@@ -126,7 +141,8 @@ export function MeetingRoomCard({
               }}
             />
           ) : null}
-          {/* 기본 이미지 플레이스홀더 (이미지가 없거나 로드 실패 시) */}
+
+          {/* 기본 이미지 플레이스홀더 */}
           <div
             className={`w-full h-full items-center justify-center ${
               imageUrl ? 'hidden' : 'flex'
@@ -139,6 +155,8 @@ export function MeetingRoomCard({
               <p className="text-blue-600 font-medium">{name}</p>
             </div>
           </div>
+
+          {/* 상태 뱃지 */}
           <Badge
             className={`absolute top-2 right-2 ${getStatusColor(
               status
@@ -147,6 +165,20 @@ export function MeetingRoomCard({
             {getStatusText(status)}
           </Badge>
         </div>
+
+        {/* 예약 정책 뱃지 */}
+        <div className="mb-2">
+          {requiresApproval ? (
+            <Badge className="bg-yellow-400 text-white text-xs px-2 py-1">
+              예약 시 승인 필요
+            </Badge>
+          ) : (
+            <Badge className="bg-blue-400 text-white text-xs px-2 py-1">
+              누구나 예약 가능
+            </Badge>
+          )}
+        </div>
+
         <CardTitle className="text-lg font-semibold">{name}</CardTitle>
         <CardDescription className="text-sm text-gray-600 mt-1">
           {description}

@@ -5,6 +5,8 @@ export interface Space {
   workspaceId: number;
   name: string;
   description: string;
+  isActive: boolean;
+  requiresApproval: boolean;
   capacity: number;
   amenities: string[];
 }

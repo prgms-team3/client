@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { fetchSpaces } from '@/services/spaces';
 import type { Space } from '@/services/spaces';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { api } from '@/lib/axios';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -37,6 +39,79 @@ export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState<string>('');
 
   const [spaces, setSpaces] = useState<Space[]>([]);
+
+  const [todayApproved, setTodayApproved] = useState(0);
+  const [weekApproved, setWeekApproved] = useState(0);
+
+  const currentWorkspaceId = useWorkspaceStore(s => s.currentId);
+  const workspaceIdNum =
+    typeof currentWorkspaceId === 'string'
+      ? Number(currentWorkspaceId)
+      : currentWorkspaceId ?? 1; // fallback
+
+  // 가용 슬롯 상태
+  type AvailableRange = { start: Date; end: Date };
+  const [availableRanges, setAvailableRanges] = useState<
+    AvailableRange[] | null
+  >(null);
+
+  // YYYY-MM-DD (로컬 기준) 포맷터
+  const toYMD = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${da}`;
+  };
+
+  // 해당 시간(HH:mm)이 가용 범위에 포함되는지 체크
+  const isTimeAvailable = (time: string) => {
+    // 회의실을 선택하지 않았거나 날짜/가용정보가 없으면 모두 활성화
+    if (!selectedRoom || !selectedDate || !availableRanges) return true;
+
+    const [hh, mm] = time.split(':').map(Number);
+    const dt = new Date(selectedDate);
+    dt.setHours(hh, mm, 0, 0);
+
+    // start <= dt < end 에 포함되면 "사용 가능"
+    return availableRanges.some(r => dt >= r.start && dt < r.end);
+  };
+
+  // 사용 가능한 시간 불러오기
+  useEffect(() => {
+    const fetchAvailableTimes = async () => {
+      if (!selectedRoom || !selectedDate) {
+        setAvailableRanges(null); // 회의실이 없거나 날짜가 없으면 전체 활성화
+        return;
+      }
+      try {
+        const dateStr = toYMD(selectedDate);
+        const { data } = await api.get('/reservations/available-times', {
+          params: { spaceId: selectedRoom.id, date: dateStr },
+        });
+
+        const ranges: AvailableRange[] = (data?.availableSlots ?? []).map(
+          (s: { startTime: string; endTime: string }) => ({
+            start: new Date(s.startTime),
+            end: new Date(s.endTime),
+          })
+        );
+        setAvailableRanges(ranges);
+      } catch (e) {
+        console.error('가용 시간 로딩 실패', e);
+        setAvailableRanges(null); // 실패 시라도 전부 활성화(선택 가능)로 둠
+      }
+    };
+
+    fetchAvailableTimes();
+  }, [selectedRoom, selectedDate]);
+
+  useEffect(() => {
+    if (!selectedTime || !selectedRoom || !selectedDate || !availableRanges)
+      return;
+    if (!isTimeAvailable(selectedTime)) {
+      setSelectedTime(''); // 기존 선택 시간이 더이상 불가하면 해제
+    }
+  }, [availableRanges, selectedRoom, selectedDate]);
 
   // 현재 시간 업데이트 (클라이언트 전용)
   useEffect(() => {
@@ -54,15 +129,16 @@ export default function DashboardPage() {
       );
     };
 
-    updateTime(); // 초기 설정
-    const interval = setInterval(updateTime, 1000); // 1초마다 업데이트
-
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
 
   // 페이지 로드 시 초기 버튼 상태 설정
   useEffect(() => {
-    const leftArrow = document.getElementById('leftArrow') as HTMLButtonElement;
+    const leftArrow = document.getElementById(
+      'leftArrow'
+    ) as HTMLButtonElement | null;
     if (leftArrow) {
       leftArrow.disabled = true; // 초기에는 왼쪽으로 스크롤할 수 없음
     }
@@ -72,15 +148,78 @@ export default function DashboardPage() {
   useEffect(() => {
     const loadSpaces = async () => {
       try {
-        // workspaceId는 스토어나 라우터 param에서 가져오도록
-        const list = await fetchSpaces(1);
+        if (!workspaceIdNum) return;
+        const list = await fetchSpaces(workspaceIdNum);
         setSpaces(list);
       } catch (e) {
         console.error('회의실 목록 로딩 실패', e);
       }
     };
     loadSpaces();
-  }, []);
+  }, [workspaceIdNum]);
+
+  // 오늘/이번주 확정 예약 계산
+  useEffect(() => {
+    const fetchAndCount = async () => {
+      try {
+        if (!workspaceIdNum) return;
+        const { data } = await api.get(
+          `/workspaces/${workspaceIdNum}/reservations`
+        );
+
+        const list = (data?.reservations ?? []) as Array<{
+          startTime: string;
+          status: string;
+        }>;
+
+        // 승인된 예약만
+        const approved = list.filter(r => r.status === 'APPROVED');
+
+        // 오늘 범위
+        const now = new Date();
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date(now);
+        todayEnd.setHours(23, 59, 59, 999);
+
+        const inRange = (d: Date, start: Date, end: Date) =>
+          d >= start && d <= end;
+
+        const todayCount = approved.filter(r => {
+          const st = new Date(r.startTime);
+          return inRange(st, todayStart, todayEnd);
+        }).length;
+
+        // 이번주 범위 (월~일)
+        const getMonday = (d: Date) => {
+          const day = d.getDay(); // 0:일 ~ 6:토
+          const diff = day === 0 ? -6 : 1 - day; // 월요일로 이동
+          const monday = new Date(d);
+          monday.setDate(d.getDate() + diff);
+          monday.setHours(0, 0, 0, 0);
+          return monday;
+        };
+        const monday = getMonday(now);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        sunday.setHours(23, 59, 59, 999);
+
+        const weekCount = approved.filter(r => {
+          const st = new Date(r.startTime);
+          return inRange(st, monday, sunday);
+        }).length;
+
+        setTodayApproved(todayCount);
+        setWeekApproved(weekCount);
+      } catch (e) {
+        console.error('예약 통계 로딩 실패', e);
+        setTodayApproved(0);
+        setWeekApproved(0);
+      }
+    };
+
+    fetchAndCount();
+  }, [workspaceIdNum]);
 
   const handleDateSelect = (date: Date | undefined) => {
     setSelectedDate(date);
@@ -138,7 +277,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16 mt-8">
           <StatCard
             title="오늘 예약"
-            value="2건"
+            value={`${todayApproved}건`}
             description="일/주/월 뷰로 확인"
             icon={CalendarDays}
             iconColor="text-blue-600"
@@ -148,7 +287,7 @@ export default function DashboardPage() {
           />
           <StatCard
             title="확정된 예약"
-            value="3건"
+            value={`${weekApproved}건`}
             description="이번 주 전체 확정된 예약"
             icon={CheckCircle}
             iconColor="text-green-600"
@@ -193,7 +332,7 @@ export default function DashboardPage() {
                     size="sm"
                     onClick={() => {
                       const slider = document.getElementById('roomSlider');
-                      if (slider) slider.scrollLeft -= 300;
+                      if (slider) (slider as HTMLElement).scrollLeft -= 300;
                     }}
                     className="flex-shrink-0 w-10 h-10 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     id="leftArrow"
@@ -209,17 +348,14 @@ export default function DashboardPage() {
                       const target = e.target as HTMLElement;
                       const leftArrow = document.getElementById(
                         'leftArrow'
-                      ) as HTMLButtonElement;
+                      ) as HTMLButtonElement | null;
                       const rightArrow = document.getElementById(
                         'rightArrow'
-                      ) as HTMLButtonElement;
+                      ) as HTMLButtonElement | null;
 
-                      // 왼쪽 화살표 활성화/비활성화
-                      if (leftArrow) {
+                      if (leftArrow)
                         leftArrow.disabled = target.scrollLeft <= 0;
-                      }
 
-                      // 오른쪽 화살표 활성화/비활성화
                       if (rightArrow) {
                         const maxScrollLeft =
                           target.scrollWidth - target.clientWidth;
@@ -240,7 +376,8 @@ export default function DashboardPage() {
                           description={space.description}
                           capacity={space.capacity}
                           features={space.amenities}
-                          status="available" // TODO: 실제 상태 값 있으면 매핑
+                          status={space.isActive ? 'available' : 'unavailable'}
+                          requiresApproval={space.requiresApproval}
                           onSelect={() => handleRoomSelect(space)}
                           isSelected={selectedRoom?.id === space.id}
                         />
@@ -254,7 +391,7 @@ export default function DashboardPage() {
                     size="sm"
                     onClick={() => {
                       const slider = document.getElementById('roomSlider');
-                      if (slider) slider.scrollLeft += 300;
+                      if (slider) (slider as HTMLElement).scrollLeft += 300;
                     }}
                     className="flex-shrink-0 w-10 h-10 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     id="rightArrow"
@@ -290,13 +427,11 @@ export default function DashboardPage() {
                         className="w-full [--cell-size:5rem]"
                         showOutsideDays={false}
                         captionLayout="label"
-                        fromYear={2024}
-                        toYear={2026}
                         reservations={reservations}
                         showDetailedReservations={false}
                         disabled={date => {
                           const today = new Date();
-                          today.setHours(0, 0, 0, 0); // 시/분/초 제거
+                          today.setHours(0, 0, 0, 0);
                           return date < today;
                         }}
                       />
@@ -304,11 +439,7 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="mt-6 text-sm text-gray-600 space-y-2">
-                    <p>
-                      • 당일부터 예약 가능합니다 (오늘: {new Date().getDate()}
-                      일)
-                    </p>
-                    <p>• 날짜를 클릭하면 빠른 예약이 가능합니다</p>
+                    <p>• 당일부터 예약 가능합니다</p>
                   </div>
                 </CardContent>
               </Card>
@@ -331,8 +462,8 @@ export default function DashboardPage() {
                     selectedTime={selectedTime}
                     onTimeSelect={handleTimeSelect}
                     isTimeReserved={time => {
-                      const isReserved = time === '10:00' || time === '10:30';
-                      return isReserved;
+                      if (!selectedRoom) return false; // 회의실 선택 전: 모두 활성화
+                      return !isTimeAvailable(time); // 가용하지 않으면 "예약됨" 처리
                     }}
                     size="large"
                     showLegend={true}
