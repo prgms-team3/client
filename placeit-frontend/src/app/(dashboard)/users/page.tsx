@@ -35,7 +35,6 @@ const ROLE_FILTERS: FilterItem<RoleFilter>[] = [
 
 // API → 테이블 행으로 변환
 function mapApiToRow(u: ApiWorkspaceUser): UserRowData {
-  // super_admin / admin / member 로 매핑
   const role: UserRowData['role'] =
     u.role === 'SUPER_ADMIN'
       ? 'super_admin'
@@ -53,7 +52,7 @@ function mapApiToRow(u: ApiWorkspaceUser): UserRowData {
     title: u.position ?? undefined, // UI 표기는 title로 사용
     role,
     status,
-    reservationsCount: undefined,
+    reservationsCount: u.monthlyReservationCount ?? 0,
     lastLoginAt: u.user.updatedAt || u.updatedAt || undefined,
     avatarUrl: undefined,
   };
