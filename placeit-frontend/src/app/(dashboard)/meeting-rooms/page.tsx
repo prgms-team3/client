@@ -14,6 +14,7 @@ import MeetingRoomCard, {
 } from '@/components/management/MeetingRoomCard';
 import AddMeetingRoomDialog, {
   type NewRoom,
+  type RoomImage,
 } from '@/components/management/AddMeetingRoomDialog';
 import { api } from '@/lib/axios';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -23,6 +24,11 @@ type ApprovalPolicy = 'auto' | 'approval_required';
 
 const DEFAULT_IMAGE =
   'https://images.unsplash.com/photo-1497366216548-37526070297c';
+
+type ApiSpaceImage = {
+  imageUrl: string;
+  imageType: 'PHOTO' | 'FLOOR_PLAN';
+};
 
 type ApiSpace = {
   id: number;
@@ -37,7 +43,7 @@ type ApiSpace = {
   createdAt: string;
   updatedAt: string;
   deleted: boolean;
-  images: string[];
+  images: ApiSpaceImage[]; // ← 객체 배열로 변경
   monthlyReservationCount?: number;
   currentUtilizationRate?: number;
   size?: number;
@@ -55,7 +61,14 @@ const FILTERS: FilterItem<RoomFilter>[] = [
   { key: 'unavailable', label: '사용 중지' },
 ];
 
-function mapApiToRoom(api: ApiSpace, imageUrl: string = DEFAULT_IMAGE): Room {
+// 대표 이미지 선택(1순위: PHOTO, 2순위: 첫 이미지, 3순위: DEFAULT)
+function pickPrimaryImage(images?: { imageUrl: string; imageType: string }[]) {
+  if (!images || images.length === 0) return DEFAULT_IMAGE;
+  const photo = images.find(i => i.imageType === 'PHOTO') ?? images[0];
+  return photo?.imageUrl || DEFAULT_IMAGE;
+}
+
+function mapApiToRoom(api: ApiSpace): Room {
   return {
     id: String(api.id),
     name: api.name,
@@ -66,7 +79,11 @@ function mapApiToRoom(api: ApiSpace, imageUrl: string = DEFAULT_IMAGE): Room {
     utilizationRate: api.currentUtilizationRate ?? 0,
     status: api.isActive ? 'available' : 'unavailable',
     facilities: api.amenities,
-    imageUrl,
+    imageUrl: pickPrimaryImage(api.images),
+    images: (api.images ?? []).map(i => ({
+      imageUrl: i.imageUrl,
+      imageType: i.imageType,
+    })),
     approvalPolicy: api.requiresApproval ? 'approval_required' : 'auto',
     size: typeof api.size === 'number' ? api.size : undefined,
   };
@@ -159,9 +176,7 @@ export default function MeetingRoomsPage() {
         const { data } = await api.get<{ spaces: ApiSpace[]; total: number }>(
           `/workspaces/${workspaceId}/spaces`
         );
-        const mapped = data.spaces.map(s =>
-          mapApiToRoom(s, s.images?.[0] ?? DEFAULT_IMAGE)
-        );
+        const mapped = data.spaces.map(mapApiToRoom);
         setRooms(mapped);
       } catch (err) {
         console.error('회의실 목록 불러오기 실패', err);
@@ -203,6 +218,8 @@ export default function MeetingRoomsPage() {
         alert('워크스페이스를 먼저 선택해 주세요.');
         return;
       }
+
+      // images: RoomImage[] 그대로 전송
       const payload = {
         name: form.name,
         description: form.description || '',
@@ -210,12 +227,14 @@ export default function MeetingRoomsPage() {
         capacity: form.capacity,
         requiresApproval: form.requiresApproval,
         amenities: form.amenities,
+        images: form.images.filter(i => i.imageUrl.trim().length > 0), // 빈 줄 제거
       };
+
       const { data } = await api.post<ApiSpace>(
         `/workspaces/${workspaceId}/spaces`,
         payload
       );
-      const created = mapApiToRoom(data, data.images?.[0] ?? DEFAULT_IMAGE);
+      const created = mapApiToRoom(data);
       setRooms(prev => [created, ...prev]);
     } catch (err: any) {
       alert(
@@ -306,12 +325,13 @@ export default function MeetingRoomsPage() {
         capacity: form.capacity,
         requiresApproval: form.requiresApproval,
         amenities: form.amenities,
+        images: form.images.filter(i => i.imageUrl.trim().length > 0), // ← 수정 시에도 전송
       };
       const { data } = await api.patch<ApiSpace>(
         `/workspaces/${workspaceId}/spaces/${editTarget.id}`,
         payload
       );
-      const updated = mapApiToRoom(data, data.images?.[0] ?? DEFAULT_IMAGE);
+      const updated = mapApiToRoom(data);
       setRooms(prev =>
         prev.map(r => (r.id === editTarget.id ? { ...updated } : r))
       );
@@ -326,6 +346,7 @@ export default function MeetingRoomsPage() {
     }
   };
 
+  // 편집 다이얼로그 초기값
   const editInitial: NewRoom | undefined = editTarget
     ? {
         name: editTarget.name,
@@ -334,6 +355,7 @@ export default function MeetingRoomsPage() {
         capacity: editTarget.capacity,
         requiresApproval: editTarget.approvalPolicy === 'approval_required',
         amenities: editTarget.facilities,
+        images: editTarget.images ?? [],
       }
     : undefined;
 
@@ -398,6 +420,7 @@ export default function MeetingRoomsPage() {
             <MeetingRoomCard
               key={room.id}
               {...room}
+              images={room.images}
               canManage={canManage}
               onToggleActive={() => toggleActive(room.id)}
               onDelete={() => handleDelete(room.id)}
