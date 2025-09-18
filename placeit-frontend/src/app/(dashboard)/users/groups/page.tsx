@@ -500,6 +500,12 @@ export default function GroupManagementPage() {
         groupId={memberTarget?.id ?? ''}
         members={memberList}
         onRemove={handleRemoveMember}
+        onAdded={m =>
+          setMemberList(prev => {
+            if (prev.some(x => String(x.id) === String(m.id))) return prev;
+            return [...prev, m];
+          })
+        }
       />
     </MainLayout>
   );
