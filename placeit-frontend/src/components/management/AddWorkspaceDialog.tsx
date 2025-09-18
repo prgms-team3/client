@@ -158,7 +158,7 @@ export default function AddWorkspaceDialog({
         <Dialog.Trigger asChild>
           <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
             <Plus className="h-4 w-4" />
-            워크스페이스 생성
+            워크스페이스 생성/참여
           </Button>
         </Dialog.Trigger>
       )}
