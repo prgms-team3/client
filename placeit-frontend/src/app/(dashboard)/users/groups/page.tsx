@@ -103,6 +103,12 @@ export default function GroupManagementPage() {
   } | null>(null);
   const [memberList, setMemberList] = React.useState<GroupMember[]>([]);
 
+  const [myRole, setMyRole] = React.useState<
+    'SUPER_ADMIN' | 'ADMIN' | 'MEMBER' | null
+  >(null);
+  const [roleReady, setRoleReady] = React.useState(false);
+  const [myUserId, setMyUserId] = React.useState<number | null>(null);
+
   // 멤버 관리 열기
   const openMemberManage = async (groupId: string) => {
     const target = groups.find(g => g.id === groupId);
@@ -152,6 +158,62 @@ export default function GroupManagementPage() {
       alert(msg);
     }
   };
+
+  // localStorage(user-storage)에서 내 userId 읽기
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem('user-storage');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      const id = parsed?.state?.user?.id;
+      if (id != null) setMyUserId(Number(id));
+    } catch (e) {
+      console.warn('failed to parse user-storage:', e);
+    }
+  }, []);
+
+  // 워크스페이스에서의 내 역할 가져오기 (GET /workspaces/{id})
+  React.useEffect(() => {
+    let aborted = false;
+    (async () => {
+      setRoleReady(false);
+      if (!currentWorkspaceId || myUserId == null) {
+        setMyRole(null);
+        setRoleReady(true);
+        return;
+      }
+      try {
+        const { data } = await api.get(`/workspaces/${currentWorkspaceId}`);
+        const wsUsers: any[] = data?.workspaceUsers ?? [];
+        const me =
+          wsUsers.find(u => String(u.userId) === String(myUserId)) ??
+          wsUsers.find(u => String(u?.user?.id) === String(myUserId));
+        const role = (me?.role as string | undefined) ?? null; // 'SUPER_ADMIN' | 'ADMIN' | 'MEMBER'
+        if (!aborted) setMyRole(role as any);
+      } catch (e) {
+        if (!aborted) {
+          console.warn('GET /workspaces/{id} failed:', e);
+          setMyRole(null);
+        }
+      } finally {
+        if (!aborted) setRoleReady(true);
+      }
+    })();
+    return () => {
+      aborted = true;
+    };
+  }, [currentWorkspaceId, myUserId]);
+
+  // ADMIN 또는 SUPER_ADMIN만 그룹 생성 버튼 노출
+  const canCreateGroup =
+    roleReady && (myRole === 'SUPER_ADMIN' || myRole === 'ADMIN');
+
+  const canManageForTarget = React.useMemo(() => {
+    if (!memberTarget) return false;
+    const byGroupAdmin = canManageIds.has(String(memberTarget.id));
+    const byWsAdmin = myRole === 'SUPER_ADMIN' || myRole === 'ADMIN';
+    return byGroupAdmin || byWsAdmin;
+  }, [memberTarget, canManageIds, myRole]);
 
   // 그룹 목록 로드: GET /groups/workspace/{workspaceId}
   React.useEffect(() => {
@@ -404,7 +466,9 @@ export default function GroupManagementPage() {
               사용자 그룹을 관리하고 권한을 설정하세요
             </p>
           </div>
-          <AddGroupDialog mode="create" onAdd={handleAddGroup} />
+          {canCreateGroup && (
+            <AddGroupDialog mode="create" onAdd={handleAddGroup} />
+          )}
         </div>
 
         {/* 상단 요약 카드 */}
@@ -500,6 +564,7 @@ export default function GroupManagementPage() {
         groupId={memberTarget?.id ?? ''}
         members={memberList}
         onRemove={handleRemoveMember}
+        canManage={canManageForTarget}
         onAdded={m =>
           setMemberList(prev => {
             if (prev.some(x => String(x.id) === String(m.id))) return prev;

@@ -24,9 +24,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 export type GroupMemberRole = 'LEADER' | 'MEMBER';
 
 export type GroupMember = {
-  /** membership(관계) id (기존과 호환) */
   id: string | number;
-  /** 실제 사용자 id (신규 추가: 이미 멤버 여부 판정용) */
   userId?: string | number;
   name: string;
   subtitle?: string;
@@ -41,13 +39,12 @@ type Props = {
   members?: GroupMember[];
   searchPlaceholder?: string;
   onRemove?: (memberId: GroupMember['id']) => Promise<void> | void;
-  /** 새 멤버 추가 성공 시 부모에 알려서 리스트에 반영 */
   onAdded?: (m: GroupMember) => void;
-  /** (선택) 이미 그룹에 포함된 userId 집합을 직접 내려줄 수 있음 */
   existingUserIds?: Set<string | number>;
+  canManage?: boolean;
 };
 
-/** 워크스페이스 전체 멤버 중에서 '추가'할 대상을 고르는 서브 다이얼로그(POST 연동) */
+/** 워크스페이스 전체 멤버 중에서 '추가'할 대상을 고르는 서브 다이얼로그 */
 function AddMembersSubDialog({
   open,
   onOpenChange,
@@ -60,9 +57,7 @@ function AddMembersSubDialog({
   onOpenChange: (v: boolean) => void;
   workspaceId?: string | number | null;
   groupId: string | number;
-  /** 이미 그룹에 속한 userId 집합(Set) */
   existingUserIds: Set<string | number>;
-  /** POST 성공 시 서버 응답으로 변환된 GroupMember를 부모로 전달 */
   onAddedFromServer?: (m: GroupMember) => void;
 }) {
   const [q, setQ] = React.useState('');
@@ -317,6 +312,7 @@ export default function GroupMemberManagerDialog({
   searchPlaceholder = '멤버 검색…',
   onAdded,
   existingUserIds,
+  canManage = true,
 }: Props) {
   const [fetched, setFetched] = React.useState<GroupMember[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -510,16 +506,16 @@ export default function GroupMemberManagerDialog({
                     </div>
 
                     <div className="shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-rose-600 hover:text-rose-700"
-                        title="제거"
-                        onClick={() => handleRemoveClick(m.id)}
-                      >
-                        <UserMinus className="mr-1 h-4 w-4" />
-                        제거
-                      </Button>
+                      {canManage && (
+                        <Button
+                          className="bg-white-100 text-rose-600 hover:bg-white-100 hover:text-rose-700"
+                          title="제거"
+                          onClick={() => handleRemoveClick(m.id)}
+                        >
+                          <UserMinus className="mr-1 h-4 w-4" />
+                          제거
+                        </Button>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -533,23 +529,27 @@ export default function GroupMemberManagerDialog({
               <Button variant="outline">닫기</Button>
             </Dialog.Close>
 
-            <Button className="gap-2" onClick={() => setAddOpen(true)}>
-              <Plus className="h-4 w-4" />
-              멤버 추가
-            </Button>
+            {canManage && (
+              <Button className="gap-2" onClick={() => setAddOpen(true)}>
+                <Plus className="h-4 w-4" />
+                멤버 추가
+              </Button>
+            )}
           </div>
         </Dialog.Content>
       </Dialog.Portal>
 
-      {/* 멤버 추가 */}
-      <AddMembersSubDialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        workspaceId={workspaceId}
-        groupId={groupId}
-        existingUserIds={computedExistingUserIds}
-        onAddedFromServer={handleAddedFromServer}
-      />
+      {/* 멤버 추가 서브 다이얼로그*/}
+      {canManage && (
+        <AddMembersSubDialog
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          workspaceId={workspaceId}
+          groupId={groupId}
+          existingUserIds={computedExistingUserIds}
+          onAddedFromServer={handleAddedFromServer}
+        />
+      )}
     </Dialog.Root>
   );
 }
