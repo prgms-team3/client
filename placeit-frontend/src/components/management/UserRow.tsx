@@ -5,7 +5,7 @@ import { Pencil, UserCog, Trash2 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
-export type UserRole = 'admin' | 'manager' | 'member';
+export type UserRole = 'super_admin' | 'admin' | 'member';
 export type UserStatus = 'active' | 'suspended';
 
 export type UserRowData = {
@@ -42,8 +42,8 @@ export function UserRow({
 }: Props) {
   // 역할 배지 색상
   const roleBadgeClass = {
+    super_admin: 'bg-purple-100 text-purple-700',
     admin: 'bg-rose-100 text-rose-700',
-    manager: 'bg-blue-100 text-blue-700',
     member: 'bg-green-100 text-green-700',
   }[user.role];
 
@@ -87,10 +87,10 @@ export function UserRow({
             roleBadgeClass
           )}
         >
-          {user.role === 'admin'
+          {user.role === 'super_admin'
+            ? '최고 관리자'
+            : user.role === 'admin'
             ? '관리자'
-            : user.role === 'manager'
-            ? '매니저'
             : '사용자'}
         </span>
       </td>

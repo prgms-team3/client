@@ -24,23 +24,22 @@ import EditUserDialog from '@/components/management/EditUserDialog';
 
 // ===== 타입/필터 =====
 type UserStatus = 'active' | 'suspended';
-type UserRole = 'admin' | 'manager' | 'member';
-type RoleFilter = 'all' | Extract<UserRole, 'admin' | 'member'>;
+type RoleFilter = 'all' | 'admin' | 'member';
 type DeptFilter = 'all' | string;
 
 const ROLE_FILTERS: FilterItem<RoleFilter>[] = [
   { key: 'all', label: '모든 역할' },
-  { key: 'admin', label: '관리자' },
+  { key: 'admin', label: '관리자' }, // super_admin + admin 포함(필터 로직에서 처리)
   { key: 'member', label: '사용자' },
 ];
 
 // API → 테이블 행으로 변환
 function mapApiToRow(u: ApiWorkspaceUser): UserRowData {
-  const role: UserRole =
-    u.role === 'SUPER_ADMIN' || u.role === 'ADMIN'
+  const role: UserRowData['role'] =
+    u.role === 'SUPER_ADMIN'
+      ? 'super_admin'
+      : u.role === 'ADMIN'
       ? 'admin'
-      : u.role === 'MANAGER'
-      ? 'manager'
       : 'member';
 
   const status: UserStatus = u.user.isActive ? 'active' : 'suspended';
@@ -53,7 +52,7 @@ function mapApiToRow(u: ApiWorkspaceUser): UserRowData {
     title: u.position ?? undefined, // UI 표기는 title로 사용
     role,
     status,
-    reservationsCount: undefined,
+    reservationsCount: u.monthlyReservationCount ?? 0,
     lastLoginAt: u.user.updatedAt || u.updatedAt || undefined,
     avatarUrl: undefined,
   };
@@ -115,7 +114,7 @@ export default function UserManagementPage() {
   const myWorkspaceRole = React.useMemo(() => {
     if (!myUserId) return null;
     const me = rawMembers.find(m => String(m.user.id) === String(myUserId));
-    return me?.role ?? null;
+    return me?.role ?? null; // 'SUPER_ADMIN' | 'ADMIN' | 'MEMBER'
   }, [rawMembers, myUserId]);
 
   const isAdmin =
@@ -123,10 +122,12 @@ export default function UserManagementPage() {
   const canDelete =
     myWorkspaceRole === 'SUPER_ADMIN' || myWorkspaceRole === 'ADMIN';
 
-  // ===== 통계 =====
+  // ===== 통계 (요청: 수정하지 않음) =====
   const totalUsers = rows.length;
   const generalUsers = React.useMemo(
-    () => rows.filter(u => u.role === 'manager' || u.role === 'member').length,
+    () =>
+      rows.filter(u => u.role === 'member' || (u as any).role === 'manager')
+        .length,
     [rows]
   );
   const adminCount = React.useMemo(
@@ -161,22 +162,26 @@ export default function UserManagementPage() {
   const filtered = React.useMemo(() => {
     const query = q.trim().toLowerCase();
     return rows.filter(u => {
+      // 필터: '관리자' 선택 시 super_admin + admin 모두 포함
       const roleOk =
         k === 'all'
           ? true
           : k === 'admin'
-          ? u.role === 'admin'
-          : u.role === 'member' || u.role === 'manager';
+          ? u.role === 'admin' || u.role === 'super_admin'
+          : u.role === 'member';
+
       const deptOk =
         dept === 'all'
           ? true
           : (u.department ?? '').toLowerCase() === dept.toLowerCase();
+
       const searchOk =
         !query ||
         u.name.toLowerCase().includes(query) ||
         u.email.toLowerCase().includes(query) ||
         (u.department ?? '').toLowerCase().includes(query) ||
         (u.title ?? '').toLowerCase().includes(query);
+
       return roleOk && deptOk && searchOk;
     });
   }, [rows, q, k, dept]);
@@ -195,7 +200,8 @@ export default function UserManagementPage() {
         email: nu.email,
         department: nu.department,
         title: nu.title,
-        role: nu.role as UserRole,
+        // 신규 사용자는 기본 member 로 가정
+        role: 'member',
         status: nu.status ?? 'active',
         reservationsCount: undefined,
         lastLoginAt: undefined,
@@ -297,18 +303,14 @@ export default function UserManagementPage() {
     if (!currentId || prevDept.toLowerCase() === nextDept.toLowerCase()) return;
 
     try {
-      // (a) 현재 워크스페이스의 그룹 목록을 불러와 "부서 그룹"만 추려냄
       const { data } = await api.get('/groups'); // 인터셉터로 토큰 부착 가정
       const allGroups: any[] = Array.isArray(data) ? data : [];
       const inWorkspace = allGroups.filter(
         g => String(g?.workspaceId) === String(currentId)
       );
 
-      // 서버 타입이 있다면 'DEPARTMENT'로, 없으면 이름으로도 추정 가능 (기존 그룹페이지 로직과 동일)  :contentReference[oaicite:3]{index=3}
       const isDeptGroup = (g: any) =>
-        (g?.type ?? '').toUpperCase() === 'DEPARTMENT' ||
-        // 백엔드가 type을 안줄 수도 있는 경우를 대비한 안전장치
-        !g?.type;
+        (g?.type ?? '').toUpperCase() === 'DEPARTMENT' || !g?.type;
 
       const deptGroups = inWorkspace.filter(isDeptGroup);
 
@@ -326,17 +328,14 @@ export default function UserManagementPage() {
       const prevGroup = findByName(prevDept);
       const nextGroup = findByName(nextDept);
 
-      // (b) 이전 부서 그룹에서 탈퇴
       if (prevDept && prevGroup?.id) {
         try {
           await api.delete(`/groups/${prevGroup.id}/leave`);
         } catch (e: any) {
-          // 경고만 띄우고 계속 진행
           console.warn('그룹 탈퇴 실패:', e);
         }
       }
 
-      // (c) 새 부서 그룹에 가입
       if (nextDept && nextGroup?.id) {
         try {
           await api.post(`/groups/${nextGroup.id}/join`);
@@ -344,10 +343,8 @@ export default function UserManagementPage() {
           console.warn('그룹 가입 실패:', e);
         }
       }
-      // 그룹이 없으면(=nextGroup 미존재) 아무것도 하지 않음. 필요 시 "부서명과 동일한 그룹이 없습니다" 토스트로 안내 가능.
     } catch (e) {
       console.warn('부서-그룹 동기화 실패:', e);
-      // PATCH는 이미 성공했고, 그룹 동기화만 실패해도 사용자 정보는 갱신되었으니 치명적 에러로 막지 않음.
     }
   };
 
@@ -373,7 +370,13 @@ export default function UserManagementPage() {
     const target = rows.find(r => String(r.id) === String(targetUserId));
     if (!target) return;
 
-    // ADMIN/MEMBER 토글 (manager는 일반 사용자로 취급)
+    // SUPER_ADMIN 은 변경 불가
+    if (target.role === 'super_admin') {
+      alert('최고 관리자의 역할은 변경할 수 없습니다.');
+      return;
+    }
+
+    // ADMIN/MEMBER 토글
     const nextServerRole = target.role === 'admin' ? 'MEMBER' : 'ADMIN';
     const confirmMsg =
       nextServerRole === 'ADMIN'
@@ -425,7 +428,7 @@ export default function UserManagementPage() {
   return (
     <MainLayout activePage="user-management">
       <div className="space-y-6 p-6">
-        {/* 헤더 + 사용자 추가 버튼 */}
+        {/* 헤더 */}
         <div className="flex items-start justify-between">
           <div>
             <h1 className="mb-2 text-3xl font-bold text-gray-900">
@@ -435,10 +438,10 @@ export default function UserManagementPage() {
               조직의 사용자 계정을 조회/관리하세요
             </p>
           </div>
-          <AddUserDialog onAdd={handleAddUser} />
+          {/* <AddUserDialog onAdd={handleAddUser} /> */}
         </div>
 
-        {/* 통계 */}
+        {/* 통계 (요청: 기존 그대로 유지) */}
         <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             label="전체 사용자"

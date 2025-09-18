@@ -1,3 +1,5 @@
+// workspcae.ts  (오타 있었으면 파일명 workspace.ts 로 맞춰주세요)
+
 // 워크스페이스 내 유저 역할
 export enum WorkspaceRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
@@ -19,29 +21,38 @@ export type Workspace = {
   name: string;
   description?: string | null;
   imageUrl?: string | null;
+
+  // 상태/소유
   isActive: boolean;
-  invitationCode: string; // 백엔드 생성값
-  superAdminName: string; // 백엔드 제공 소유자명
+  superAdminName?: string; // 서버가 제공하지 않을 수도 있으므로 optional
+
+  // 초대 코드
+  invitationCode?: string; // (과거/다른 엔드포인트에서 내려올 수 있으므로 optional로 유지)
+  activeInvitationCode?: string; // 활성 코드가 별도 필드로 내려오는 경우 대응
+
+  // 멤버/권한 관련
   workspaceUsers?: WorkspaceUser[]; // 멤버 수 계산용
+  userCount?: number; // 서버에서 집계 숫자를 주는 경우
+  userRole?: WorkspaceRole | string; // 서버가 문자열로 주는 경우를 포괄
+
+  // 타임스탬프/관리
   createdAt: string; // ISO
-  // 백엔드에서 내려오는 경우가 있어 보였지만, 현재 사용처가 불명확하면 주석 처리
-  // updatedAt?: string;
-  // deleted?: boolean;
+  updatedAt?: string; // ISO (서버가 줄 수도 있어 optional)
+  deleted?: boolean; // 일부 응답에 포함될 수 있어 optional
 };
 
 export type CreateWorkspace = {
   name: string;
   description?: string;
-  imageFile?: File | null;
-  imageUrl?: string | null;
-  // 이미지 업로드가 필요하면 FormData 규격으로 확장
+  imageUrl?: string; // URL 기반으로 생성
+  // imageFile?: File | null; // (파일 업로드가 필요해지면 주석 해제 후 FormData 전략 사용)
 };
 
-export type UpdateWorkspace = Partial<Omit<CreateWorkspace, 'name'>> & {
+export type UpdateWorkspace = Partial<
+  Pick<CreateWorkspace, 'name' | 'description' | 'imageUrl'>
+> & {
   name?: string;
 };
 
-// 초대/참가 콜백 등에서 id만 필요한 다양한 응답을 포괄
-export type JoinWorkspaceResponse =
-  | { workspace?: { id?: number | string } }
-  | { id?: number | string };
+// 초대/참가 응답: 서버가 Workspace 자체를 반환하거나 { workspace: Workspace }로 감싸 반환할 수 있음
+export type JoinWorkspaceResponse = Workspace | { workspace: Workspace };

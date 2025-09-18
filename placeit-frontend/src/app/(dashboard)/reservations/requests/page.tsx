@@ -73,6 +73,13 @@ export default function ReservationRequestsPage() {
   const [rejectingIds, setRejectingIds] = useState<Set<number>>(new Set());
   const workspaceId = useWorkspaceStore(state => state.currentId);
 
+  // 내 역할 조회
+  const [myWorkspaceRole, setMyWorkspaceRole] = useState<string | null>(null);
+  const isAdmin = useMemo(
+    () => ['SUPER_ADMIN', 'ADMIN'].includes(myWorkspaceRole ?? ''),
+    [myWorkspaceRole]
+  );
+
   useEffect(() => {
     const fetchReservations = async () => {
       if (!workspaceId) return;
@@ -94,6 +101,25 @@ export default function ReservationRequestsPage() {
       }
     };
     fetchReservations();
+  }, [workspaceId]);
+
+  // 현재 워크스페이스에서의 내 역할 가져오기
+  useEffect(() => {
+    const fetchMyRole = async () => {
+      if (!workspaceId) return;
+      try {
+        const res = await api.get<{ workspaces: any[] }>('/workspaces/my');
+        const ws = res.data.workspaces?.find(
+          (w: any) => String(w.id) === String(workspaceId)
+        );
+        const role: string | null = ws?.workspaceUsers?.[0]?.role ?? null;
+        setMyWorkspaceRole(role);
+      } catch (e) {
+        console.error('내 역할 조회 실패', e);
+        setMyWorkspaceRole(null);
+      }
+    };
+    fetchMyRole();
   }, [workspaceId]);
 
   const filteredRequests = useMemo(() => {
@@ -119,6 +145,7 @@ export default function ReservationRequestsPage() {
 
   // 예약 요청 승인
   const handleApprove = async (requestId: number) => {
+    if (!isAdmin) return; // 가드
     if (approvingIds.has(requestId)) return;
 
     const prev = requests.find(r => r.id === requestId)?.status;
@@ -155,6 +182,7 @@ export default function ReservationRequestsPage() {
 
   // 예약 요청 거절
   const handleReject = async (requestId: number) => {
+    if (!isAdmin) return; // 가드
     if (rejectingIds.has(requestId)) return;
 
     const prev = requests.find(r => r.id === requestId)?.status;
@@ -343,7 +371,7 @@ export default function ReservationRequestsPage() {
                   key={request.id}
                   className="hover:shadow-md transition-shadow duration-200"
                 >
-                  <CardContent className="p-6">
+                  <CardContent className="px-6 py-2">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
@@ -387,7 +415,7 @@ export default function ReservationRequestsPage() {
                         </div>
                       </div>
 
-                      {request.status === 'PENDING' && (
+                      {isAdmin && request.status === 'PENDING' && (
                         <div className="flex gap-2 ml-4">
                           <Button
                             size="sm"

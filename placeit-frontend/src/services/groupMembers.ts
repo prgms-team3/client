@@ -26,7 +26,6 @@ export async function fetchGroupMembers(
 ): Promise<ApiGroupMember[]> {
   const id = String(groupId);
   const { data } = await api.get(`/groups/${id}/members`);
-  // 서버가 배열을 준다고 가정
   return Array.isArray(data) ? (data as ApiGroupMember[]) : [];
 }
 

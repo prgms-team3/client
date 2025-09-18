@@ -9,6 +9,7 @@ export type ApiWorkspaceUser = {
   position: string | null;
   joinedAt: string;
   updatedAt: string;
+  monthlyReservationCount: number;
   user: {
     id: number;
     email: string;

@@ -45,9 +45,12 @@ export async function deactivateWorkspace(id: string | number): Promise<void> {
 }
 
 // 초대코드로 워크스페이스 참여
-export async function joinWorkspaceByCode(
-  code: string
-): Promise<JoinWorkspaceResponse> {
+export async function joinWorkspaceByCode(code: string): Promise<Workspace> {
   const { data } = await api.post('/workspaces/join', { code });
   return data;
+}
+
+// 워크스페이스 나가기
+export async function leaveWorkspace(workspaceId: string | number) {
+  return api.delete(`/workspaces/${workspaceId}/leave`);
 }

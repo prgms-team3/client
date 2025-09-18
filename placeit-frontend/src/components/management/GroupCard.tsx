@@ -170,7 +170,7 @@ export default function GroupCard(props: Props) {
           onClick={() => onManageMembers?.(id)}
         >
           <Users className="h-4 w-4" />
-          멤버 목록
+          멤버 관리
         </Button>
       </div>
     </div>
