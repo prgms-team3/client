@@ -25,7 +25,7 @@ export type GroupMemberRole = 'LEADER' | 'MEMBER';
 
 export type GroupMember = {
   id: string | number;
-  userId?: string | number;
+  userId: string | number;
   name: string;
   subtitle?: string;
   role: GroupMemberRole;
@@ -38,7 +38,10 @@ type Props = {
   groupId: string | number;
   members?: GroupMember[];
   searchPlaceholder?: string;
-  onRemove?: (memberId: GroupMember['id']) => Promise<void> | void;
+  onRemove?: (
+    memberId: GroupMember['id'],
+    userId?: GroupMember['userId']
+  ) => Promise<void> | void;
   onAdded?: (m: GroupMember) => void;
   existingUserIds?: Set<string | number>;
   canManage?: boolean;
@@ -321,6 +324,79 @@ export default function GroupMemberManagerDialog({
   const [addOpen, setAddOpen] = React.useState(false);
   const workspaceId = useWorkspaceStore(s => s.currentId);
 
+  // 🔐 내 유저 id / 내 워크스페이스 역할 / SUPER_ADMIN 집합
+  const [myUserId, setMyUserId] = React.useState<number | null>(null);
+  const [myRole, setMyRole] = React.useState<
+    'SUPER_ADMIN' | 'ADMIN' | 'MEMBER' | null
+  >(null);
+  const [superAdminIds, setSuperAdminIds] = React.useState<
+    Set<number | string>
+  >(new Set());
+
+  // localStorage에서 내 userId 읽기
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem('user-storage');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      const id = parsed?.state?.user?.id;
+      if (id != null) setMyUserId(Number(id));
+    } catch (e) {
+      console.warn('failed to parse user-storage:', e);
+    }
+  }, []);
+
+  // 워크스페이스 사용자 목록으로부터 내 역할 및 SUPER_ADMIN 집합 계산
+  React.useEffect(() => {
+    if (!open) return; // 다이얼로그 열릴 때만 갱신해도 충분
+    if (!workspaceId) {
+      setMyRole(null);
+      setSuperAdminIds(new Set());
+      return;
+    }
+    let aborted = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/workspaces/${workspaceId}`);
+        const wsUsers: any[] = data?.workspaceUsers ?? [];
+
+        // SUPER_ADMIN들 수집
+        const supIds = new Set<number | string>();
+        for (const u of wsUsers) {
+          const uid = u?.userId ?? u?.user?.id;
+          const role = (u?.role as string | undefined) ?? '';
+          if (uid != null && role.toUpperCase() === 'SUPER_ADMIN') {
+            supIds.add(Number(uid));
+          }
+        }
+
+        // 내 역할 결정
+        let mine: 'SUPER_ADMIN' | 'ADMIN' | 'MEMBER' | null = null;
+        if (myUserId != null) {
+          const me =
+            wsUsers.find((u: any) => String(u.userId) === String(myUserId)) ??
+            wsUsers.find((u: any) => String(u?.user?.id) === String(myUserId));
+          const role = (me?.role as string | undefined) ?? null;
+          mine = (role as any) ?? null;
+        }
+
+        if (!aborted) {
+          setSuperAdminIds(supIds);
+          setMyRole(mine);
+        }
+      } catch (e) {
+        if (!aborted) {
+          console.warn('GET /workspaces/{id} failed in member dialog:', e);
+          setSuperAdminIds(new Set());
+          setMyRole(null);
+        }
+      }
+    })();
+    return () => {
+      aborted = true;
+    };
+  }, [open, workspaceId, myUserId]);
+
   // open & members 미지정일 때만 fetch
   React.useEffect(() => {
     if (!open) return;
@@ -387,16 +463,38 @@ export default function GroupMemberManagerDialog({
   }, [source, q]);
 
   // 제거
-  const handleRemoveClick = async (memberId: GroupMember['id']) => {
-    if (Array.isArray(members)) {
-      await onRemove?.(memberId);
+  const handleRemoveClick = async (memberIdOrUserId: GroupMember['id']) => {
+    // 🔒 가드: SUPER_ADMIN 보호 (내가 SUPER_ADMIN이 아닐 때)
+    const isTargetSuperAdmin = superAdminIds.has(memberIdOrUserId);
+    if (isTargetSuperAdmin && myRole !== 'SUPER_ADMIN') {
+      alert('SUPER_ADMIN은 관리자만 제거할 수 있습니다.');
       return;
     }
+
+    if (Array.isArray(members)) {
+      const target = (members ?? []).find(
+        m =>
+          String(m.id) === String(memberIdOrUserId) ||
+          String(m.userId) === String(memberIdOrUserId)
+      );
+      await onRemove?.(memberIdOrUserId, target?.userId);
+      return;
+    }
+
     const snapshot = fetched;
-    setFetched(prev => prev.filter(m => m.id !== memberId));
+    setFetched(prev =>
+      prev.filter(
+        m => m.id !== memberIdOrUserId && m.userId !== memberIdOrUserId
+      )
+    );
     try {
-      await onRemove?.(memberId);
-      await removeGroupMember(groupId, memberId);
+      const target = snapshot.find(
+        m =>
+          String(m.id) === String(memberIdOrUserId) ||
+          String(m.userId) === String(memberIdOrUserId)
+      );
+      await onRemove?.(memberIdOrUserId, target?.userId);
+      await removeGroupMember(groupId, memberIdOrUserId);
     } catch (e) {
       setFetched(snapshot);
       const status = (e as any)?.response?.status;
@@ -415,7 +513,6 @@ export default function GroupMemberManagerDialog({
     onAdded?.(m);
     if (!members) {
       setFetched(prev => {
-        // membership id 기준 중복 방지
         if (prev.some(x => String(x.id) === String(m.id))) return prev;
         return [...prev, m];
       });
@@ -484,41 +581,48 @@ export default function GroupMemberManagerDialog({
               </div>
             ) : (
               <ul className="divide-y divide-gray-200">
-                {filtered.map(m => (
-                  <li
-                    key={m.id}
-                    className="flex items-center justify-between px-4 py-3"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100">
-                        <UserCircle2 className="h-5 w-5 text-gray-500" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-gray-900">
-                          {m.name}
-                        </p>
-                        {m.subtitle ? (
-                          <p className="truncate text-xs text-gray-500">
-                            {m.subtitle}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
+                {filtered.map(m => {
+                  const isTargetSuperAdmin = superAdminIds.has(m.userId);
+                  const showRemoveButton =
+                    canManage &&
+                    (myRole === 'SUPER_ADMIN' || !isTargetSuperAdmin);
 
-                    <div className="shrink-0">
-                      {canManage && (
-                        <Button
-                          className="bg-white-100 text-rose-600 hover:bg-white-100 hover:text-rose-700"
-                          title="제거"
-                          onClick={() => handleRemoveClick(m.id)}
-                        >
-                          <UserMinus className="mr-1 h-4 w-4" />
-                          제거
-                        </Button>
-                      )}
-                    </div>
-                  </li>
-                ))}
+                  return (
+                    <li
+                      key={m.id}
+                      className="flex items-center justify-between px-4 py-3"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100">
+                          <UserCircle2 className="h-5 w-5 text-gray-500" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-gray-900">
+                            {m.name}
+                          </p>
+                          {m.subtitle ? (
+                            <p className="truncate text-xs text-gray-500">
+                              {m.subtitle}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="shrink-0">
+                        {showRemoveButton && (
+                          <Button
+                            className="bg-white-100 text-rose-600 hover:bg-white-100 hover:text-rose-700"
+                            title="제거"
+                            onClick={() => handleRemoveClick(m.userId)}
+                          >
+                            <UserMinus className="mr-1 h-4 w-4" />
+                            제거
+                          </Button>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

@@ -62,6 +62,7 @@ function mapMembers(resp: any[]): GroupMember[] {
   if (!Array.isArray(resp)) return [];
   return resp.map(item => {
     const membershipId = item?.id; // relation id
+    const userId = item?.userId ?? item?.user?.id;
     const userName = item?.user?.name ?? '이름 없음';
     const email = item?.user?.email ?? '';
     const role =
@@ -71,6 +72,7 @@ function mapMembers(resp: any[]): GroupMember[] {
 
     const m: GroupMember = {
       id: membershipId,
+      userId,
       name: userName,
       subtitle: email,
       role,
@@ -134,28 +136,59 @@ export default function GroupManagementPage() {
   };
 
   // 멤버 제거(낙관적 업데이트 + 실패 롤백)
-  const handleRemoveMember = async (memberId: GroupMember['id']) => {
+  // const handleRemoveMember = async (
+  //   memberId: GroupMember['id'],
+  //   userId?: number | string | null
+  // ) => {
+  //   if (!memberTarget?.id) return;
+
+  //   const snapshot = memberList;
+  //   setMemberList(prev => prev.filter(m => m.id !== memberId));
+  //   try {
+  //     if (
+  //       userId != null &&
+  //       myUserId != null &&
+  //       Number(userId) === Number(myUserId)
+  //     ) {
+  //       // 본인인 경우: leave 엔드포인트 사용
+  //       await api.delete(`/groups/${memberTarget.id}/leave`);
+  //     } else {
+  //       // 타인 제거: 기존 엔드포인트 사용
+  //       await api.delete(`/groups/${memberTarget.id}/members/${memberId}`);
+  //     }
+  //   } catch (e: any) {
+  //     setMemberList(snapshot); // 롤백
+  //     const status = e?.response?.status;
+  //     const msg =
+  //       status === 401
+  //         ? '인증 오류(401): accessToken을 확인해주세요.'
+  //         : e?.response?.data?.message ||
+  //           e?.message ||
+  //           '멤버 삭제 중 오류가 발생했습니다.';
+  //     setError(msg);
+  //     console.error(
+  //       `DELETE /groups/${memberTarget.id}/members/${memberId} failed:`,
+  //       e
+  //     );
+  //     alert(msg);
+  //   }
+  // };
+  const handleRemoveMember = async (userId: GroupMember['userId']) => {
     if (!memberTarget?.id) return;
 
     const snapshot = memberList;
-    setMemberList(prev => prev.filter(m => m.id !== memberId));
+    setMemberList(prev => prev.filter(m => m.userId !== userId)); //  userId 기준
+
     try {
-      await api.delete(`/groups/${memberTarget.id}/members/${memberId}`);
+      // 본인인지 확인해서 분기
+      if (myUserId != null && Number(userId) === Number(myUserId)) {
+        await api.delete(`/groups/${memberTarget.id}/leave`); // 자기 자신 제거
+      } else {
+        await api.delete(`/groups/${memberTarget.id}/members/${userId}`); // 타인 제거
+      }
     } catch (e: any) {
       setMemberList(snapshot); // 롤백
-      const status = e?.response?.status;
-      const msg =
-        status === 401
-          ? '인증 오류(401): accessToken을 확인해주세요.'
-          : e?.response?.data?.message ||
-            e?.message ||
-            '멤버 삭제 중 오류가 발생했습니다.';
-      setError(msg);
-      console.error(
-        `DELETE /groups/${memberTarget.id}/members/${memberId} failed:`,
-        e
-      );
-      alert(msg);
+      alert('멤버 삭제 중 오류 발생');
     }
   };
 
@@ -508,8 +541,6 @@ export default function GroupManagementPage() {
           activeKey={k}
           onChange={setK}
         />
-
-        {error && <div className="text-sm text-rose-600">{error}</div>}
 
         {/* 카드 리스트 */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
