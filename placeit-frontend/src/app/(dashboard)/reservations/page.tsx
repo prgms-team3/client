@@ -18,6 +18,7 @@ import {
   Check,
   Pencil,
   Trash2,
+  Plus,
 } from 'lucide-react';
 import { fetchWorkspaceReservations } from '@/services/reservations';
 import { useActiveWorkspaceId } from '@/lib/workspaceId';
@@ -193,46 +194,19 @@ export default function ReservationsPage() {
   };
 
   const handleNewReservation = () => {
+    // 오늘 날짜로 강제 설정
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // 시/분/초 초기화
+    setSelectedDate(today);
+
     setModalSelectedTime('');
     setShowReservationModal(true);
   };
 
   // 새로운 예약 추가
-  const handleAddReservation = async (created: any) => {
-    const dateStr = toDateStr(created.startTime);
-    const startHHmm = toTimeHHmm(created.startTime);
-    const endHHmm = toTimeHHmm(created.endTime);
-
-    const roomName =
-      created?.space?.name ?? `공간#${created.spaceId ?? '알수없음'}`;
-
-    const attendees =
-      typeof created.attendees === 'string' && created.attendees.trim()
-        ? created.attendees
-            .split(',')
-            .map((s: string) => s.trim())
-            .filter(Boolean)
-        : [];
-
-    const status =
-      created?.status === 'APPROVED'
-        ? ('confirmed' as const)
-        : created?.status === 'REJECTED'
-        ? ('cancelled' as const)
-        : ('pending' as const);
-
-    const success = await addReservation({
-      id: String(created.id ?? `${Date.now()}`),
-      title: created.purpose,
-      room: roomName,
-      date: dateStr,
-      time: startHHmm,
-      endTime: endHHmm,
-      attendees,
-      status,
-    });
-
-    if (success) setShowReservationModal(false);
+  const handleAddReservation = async (_created: any) => {
+    setShowReservationModal(false);
+    await fetchAndSetReservations();
   };
 
   // 예약 수정
@@ -336,10 +310,9 @@ export default function ReservationsPage() {
 
   // 예약/옵션이 로드된 뒤, 처음 한 번 기본 회의실 자동 선택
   useEffect(() => {
-    if (!selectedRoomId && roomOptions.length > 0) {
-      setSelectedRoomId(roomOptions[0].id); // 이름순 첫 번째
-    }
-  }, [roomOptions, selectedRoomId]);
+    fetchAndSetReservations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentWsId, myOnly]);
 
   // 공간별 필터링
   const filteredReservations = useMemo(() => {
@@ -413,6 +386,52 @@ export default function ReservationsPage() {
 
     return result;
   }, [filteredReservations]);
+
+  // 전체/내 예약 탭 상태에 맞춰 서버에서 다시 가져와 스토어에 반영
+  const fetchAndSetReservations = async () => {
+    try {
+      if (currentWsId == null) return;
+
+      let apiList: any[] = [];
+
+      if (myOnly) {
+        const { data } = await api.get('/reservations/my');
+        const list = Array.isArray(data) ? data : data?.reservations ?? [];
+        const wsIdNum = Number(currentWsId);
+        apiList = list.filter((r: any) => {
+          const s = r.space ?? {};
+          const wid = Number(
+            s.workspaceId ?? s.workspace?.id ?? r.workspaceId ?? NaN
+          );
+          return Number.isFinite(wid) ? wid === wsIdNum : true;
+        });
+      } else {
+        apiList = await fetchWorkspaceReservations(currentWsId);
+      }
+
+      const normalized = apiList.map(r => ({
+        id: String(r.id),
+        title: r.purpose,
+        room: r.space?.name ?? `공간#${r.spaceId}`,
+        roomId: String(r.space?.id ?? r.spaceId),
+        date: toDateStr(r.startTime),
+        time: toTimeHHmm(r.startTime),
+        endTime: toTimeHHmm(r.endTime),
+        attendees: r.attendees
+          ? r.attendees
+              .split(',')
+              .map((s: string) => s.trim())
+              .filter(Boolean)
+          : [],
+        status: mapStatus(r.status),
+        ownerId: r.userId ?? r.user?.id ?? null,
+      }));
+
+      setReservations(normalized);
+    } catch (e) {
+      console.error('예약 재조회 실패', e);
+    }
+  };
 
   return (
     <MainLayout activePage="reservations">
@@ -512,9 +531,9 @@ export default function ReservationsPage() {
               className="h-10 pl-3 pr-8 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white shadow-sm"
             >
               <option value="">공간 선택…</option>
-              {roomOptions.map(opt => (
-                <option key={opt.id} value={opt.id}>
-                  {opt.name}
+              {spaces.map(space => (
+                <option key={space.id} value={space.id}>
+                  {space.name}
                 </option>
               ))}
             </select>
@@ -524,7 +543,7 @@ export default function ReservationsPage() {
               onClick={handleNewReservation}
               className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200"
             >
-              새 예약
+              <Plus className="h-4 w-4" />새 예약
             </Button>
           </div>
         </div>
