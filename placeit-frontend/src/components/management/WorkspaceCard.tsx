@@ -3,7 +3,6 @@
 import * as React from 'react';
 import { Edit2, Trash2, Copy, UserCircle2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import Image from 'next/image';
 
 export type WorkspaceStatus = 'active' | 'inactive';
 

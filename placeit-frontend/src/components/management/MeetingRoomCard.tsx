@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import Image from 'next/image';
 import {
   Edit2,
   Trash2,
@@ -186,13 +185,13 @@ export default function MeetingRoomCard({
         onPointerUp={onPointerUp}
         aria-label={`${name} 이미지 갤러리`}
       >
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={activeSrc}
           alt={name}
           width={800}
           height={450}
           className="aspect-[16/9] w-full object-cover transition-[transform,opacity]"
-          priority={false}
         />
 
         {/* 상태 뱃지 */}
