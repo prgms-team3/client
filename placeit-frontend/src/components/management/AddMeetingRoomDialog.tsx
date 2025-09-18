@@ -8,7 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -251,299 +250,273 @@ export default function AddMeetingRoomDialog({
         </DialogTrigger>
       ) : null}
 
-      {/* 스크롤 가능한 다이얼로그 레이아웃 */}
+      {/* 전체 스크롤: 이중 스크롤/푸터 고정 제거 */}
       <DialogContent
         className="
-          w-[calc(100vw-2rem)] max-w-2xl p-0
-          md:max-h-[85vh] max-h-[90vh] overflow-hidden
+          w-[calc(100vw-2rem)] max-w-2xl
+          md:max-h-[85vh] max-h-[90vh]
+          overflow-y-auto p-6
         "
       >
-        {/* sticky 헤더 */}
-        <DialogHeader
-          className="
-            sticky top-0 z-10 bg-white/90 backdrop-blur
-            mt-8 px-6
-          "
-        >
+        {/* 비-sticky 헤더 */}
+        <DialogHeader className="px-0">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{desc}</DialogDescription>
         </DialogHeader>
 
-        {/* 스크롤 본문 */}
-        <div className="overflow-y-auto px-6 md:max-h-[calc(85vh-120px)] max-h-[calc(90vh-120px)]">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* 기본 정보 */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <ReqLabel htmlFor="room-name" required>
-                  이름
-                </ReqLabel>
-                <input
-                  id="room-name"
-                  value={form.name}
-                  onChange={e => update('name', e.target.value)}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
-                  placeholder="예: 컨퍼런스 룸 A"
-                  required
-                  aria-required="true"
-                />
-                {errors.name && (
-                  <p className="mt-1 text-xs text-red-600">{errors.name}</p>
-                )}
-              </div>
-
-              <div className="sm:col-span-2">
-                <ReqLabel htmlFor="room-description">설명</ReqLabel>
-                <textarea
-                  id="room-description"
-                  value={form.description}
-                  onChange={e => update('description', e.target.value)}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
-                  placeholder="예: 커다란 모니터가 있는 컨퍼런스 룸"
-                  rows={2}
-                />
-              </div>
-
-              <div>
-                <ReqLabel htmlFor="room-location" required>
-                  위치
-                </ReqLabel>
-                <input
-                  id="room-location"
-                  value={form.location}
-                  onChange={e => update('location', e.target.value)}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
-                  placeholder="예) 2층 동측"
-                  required
-                  aria-required="true"
-                />
-                {errors.location && (
-                  <p className="mt-1 text-xs text-red-600">{errors.location}</p>
-                )}
-              </div>
-
-              <div>
-                <ReqLabel htmlFor="room-capacity" required>
-                  수용인원
-                </ReqLabel>
-                <input
-                  id="room-capacity"
-                  type="number"
-                  min={1}
-                  value={form.capacity}
-                  onChange={e => update('capacity', Number(e.target.value))}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
-                  required
-                  aria-required="true"
-                />
-                {errors.capacity && (
-                  <p className="mt-1 text-xs text-red-600">{errors.capacity}</p>
-                )}
-              </div>
-
-              {/* 예약 승인 정책 */}
-              <div className="sm:col-span-2">
-                <ReqLabel>예약 승인 정책</ReqLabel>
-                <div className="flex flex-wrap items-center gap-4 rounded-md border p-3">
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="requiresApproval"
-                      value="false"
-                      checked={!form.requiresApproval}
-                      onChange={() => update('requiresApproval', false)}
-                    />
-                    누구나 예약 가능
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="requiresApproval"
-                      value="true"
-                      checked={form.requiresApproval}
-                      onChange={() => update('requiresApproval', true)}
-                    />
-                    예약 시 승인 필요
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* 설비 */}
+        {/* 폼 전체가 콘텐츠 끝까지 스크롤됨 */}
+        <form onSubmit={handleSubmit} className="mt-4 space-y-5">
+          {/* 기본 정보 */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <ReqLabel>설비</ReqLabel>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {AMENITY_OPTIONS.map(opt => {
-                  const checked = form.amenities.includes(opt.value);
-                  return (
-                    <label
-                      key={opt.value}
-                      className="flex cursor-pointer items-center gap-2 px-3 py-1 text-sm"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleAmenity(opt.value)}
-                        className="h-4 w-4"
-                      />
-                      {opt.label}
-                    </label>
-                  );
-                })}
-              </div>
+              <ReqLabel htmlFor="room-name" required>
+                이름
+              </ReqLabel>
+              <input
+                id="room-name"
+                value={form.name}
+                onChange={e => update('name', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="예: 컨퍼런스 룸 A"
+                required
+                aria-required="true"
+              />
+              {errors.name && (
+                <p className="mt-1 text-xs text-red-600">{errors.name}</p>
+              )}
             </div>
 
-            {/* 이미지 */}
-            <div className="space-y-3">
-              <ReqLabel>이미지</ReqLabel>
-              {form.images.length === 0 && (
-                <div className="flex items-center gap-2 rounded-md border border-dashed border-gray-300 p-3 text-sm text-gray-600">
-                  <ImageIcon className="h-4 w-4 text-gray-400" />
-                  <span>
-                    이미지를 추가하려면 아래 <b>이미지 추가</b> 버튼을
-                    눌러주세요.
-                  </span>
-                </div>
+            <div className="sm:col-span-2">
+              <ReqLabel htmlFor="room-description">설명</ReqLabel>
+              <textarea
+                id="room-description"
+                value={form.description}
+                onChange={e => update('description', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="예: 커다란 모니터가 있는 컨퍼런스 룸"
+                rows={2}
+              />
+            </div>
+
+            <div>
+              <ReqLabel htmlFor="room-location" required>
+                위치
+              </ReqLabel>
+              <input
+                id="room-location"
+                value={form.location}
+                onChange={e => update('location', e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="예) 2층 동측"
+                required
+                aria-required="true"
+              />
+              {errors.location && (
+                <p className="mt-1 text-xs text-red-600">{errors.location}</p>
               )}
+            </div>
 
-              <div className="space-y-3">
-                {form.images.map((img, idx) => {
-                  const isValidUrl =
-                    img.imageUrl.trim().length > 0 &&
-                    /^https?:\/\//.test(img.imageUrl.trim());
-                  const urlError = errors[`images.${idx}.imageUrl`];
-                  return (
-                    <div
-                      key={idx}
-                      className="rounded-lg border p-3 shadow-sm sm:p-4"
-                    >
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-8">
-                        <div className="sm:col-span-5">
-                          <label className="mb-1 block text-xs font-medium text-gray-700">
-                            이미지 URL
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="url"
-                              inputMode="url"
-                              className="w-full rounded-md border px-3 py-2 pr-10 text-sm"
-                              placeholder="예: https://example.com/room.jpg"
-                              value={img.imageUrl}
-                              onChange={e =>
-                                updateImageField(
-                                  idx,
-                                  'imageUrl',
-                                  e.target.value
-                                )
-                              }
-                            />
-                            <Link2 className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                          </div>
-                          {urlError && (
-                            <p className="mt-1 text-xs text-red-600">
-                              {urlError}
-                            </p>
-                          )}
-                        </div>
+            <div>
+              <ReqLabel htmlFor="room-capacity" required>
+                수용인원
+              </ReqLabel>
+              <input
+                id="room-capacity"
+                type="number"
+                min={1}
+                value={form.capacity}
+                onChange={e => update('capacity', Number(e.target.value))}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                required
+                aria-required="true"
+              />
+              {errors.capacity && (
+                <p className="mt-1 text-xs text-red-600">{errors.capacity}</p>
+              )}
+            </div>
 
-                        <div className="sm:col-span-2">
-                          <label className="mb-1 block text-xs font-medium text-gray-700">
-                            유형
-                          </label>
-                          <select
-                            className="w-full rounded-md border px-3 py-2 text-sm"
-                            value={img.imageType}
+            {/* 예약 승인 정책 */}
+            <div className="sm:col-span-2">
+              <ReqLabel>예약 승인 정책</ReqLabel>
+              <div className="flex flex-wrap items-center gap-4 rounded-md border p-3">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="requiresApproval"
+                    value="false"
+                    checked={!form.requiresApproval}
+                    onChange={() => update('requiresApproval', false)}
+                  />
+                  누구나 예약 가능
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="requiresApproval"
+                    value="true"
+                    checked={form.requiresApproval}
+                    onChange={() => update('requiresApproval', true)}
+                  />
+                  예약 시 승인 필요
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* 설비 */}
+          <div>
+            <ReqLabel>설비</ReqLabel>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {AMENITY_OPTIONS.map(opt => {
+                const checked = form.amenities.includes(opt.value);
+                return (
+                  <label
+                    key={opt.value}
+                    className="flex cursor-pointer items-center gap-2 px-3 py-1 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleAmenity(opt.value)}
+                      className="h-4 w-4"
+                    />
+                    {opt.label}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 이미지 */}
+          <div className="space-y-3">
+            <ReqLabel>이미지</ReqLabel>
+            {form.images.length === 0 && (
+              <div className="flex items-center gap-2 rounded-md border border-dashed border-gray-300 p-3 text-sm text-gray-600">
+                <ImageIcon className="h-4 w-4 text-gray-400" />
+                <span>
+                  이미지를 추가하려면 아래 <b>이미지 추가</b> 버튼을 눌러주세요.
+                </span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {form.images.map((img, idx) => {
+                const isValidUrl =
+                  img.imageUrl.trim().length > 0 &&
+                  /^https?:\/\//.test(img.imageUrl.trim());
+                const urlError = errors[`images.${idx}.imageUrl`];
+                return (
+                  <div
+                    key={idx}
+                    className="rounded-lg border p-3 shadow-sm sm:p-4"
+                  >
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-8">
+                      <div className="sm:col-span-5">
+                        <label className="mb-1 block text-xs font-medium text-gray-700">
+                          이미지 URL
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="url"
+                            inputMode="url"
+                            className="w-full rounded-md border px-3 py-2 pr-10 text-sm"
+                            placeholder="예: https://example.com/room.jpg"
+                            value={img.imageUrl}
                             onChange={e =>
-                              updateImageField(
-                                idx,
-                                'imageType',
-                                e.target.value as ImageType
-                              )
+                              updateImageField(idx, 'imageUrl', e.target.value)
                             }
-                          >
-                            <option value="PHOTO">사진</option>
-                            <option value="FLOOR_PLAN">도면</option>
-                          </select>
-                        </div>
-
-                        <div className="sm:col-span-1 flex items-end">
-                          <button
-                            type="button"
-                            className="mb-1 inline-flex items-center gap-1 rounded-md border px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                            onClick={() => removeImageRow(idx)}
-                            aria-label="이미지 삭제"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 미리보기 */}
-                      <div className="mt-3 overflow-hidden rounded-lg border">
-                        {isValidUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={img.imageUrl.trim()}
-                            alt="미리보기"
-                            className="h-32 w-full object-cover"
                           />
-                        ) : (
-                          <div className="flex items-center gap-2 p-3 text-sm text-gray-600">
-                            <ImageIcon className="h-4 w-4 text-gray-400" />
-                            <span>
-                              유효한 이미지 URL을 입력하면 미리보기가 보여요.
-                            </span>
-                          </div>
+                          <Link2 className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        </div>
+                        {urlError && (
+                          <p className="mt-1 text-xs text-red-600">
+                            {urlError}
+                          </p>
                         )}
                       </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="mb-1 block text-xs font-medium text-gray-700">
+                          유형
+                        </label>
+                        <select
+                          className="w-full rounded-md border px-3 py-2 text-sm"
+                          value={img.imageType}
+                          onChange={e =>
+                            updateImageField(
+                              idx,
+                              'imageType',
+                              e.target.value as ImageType
+                            )
+                          }
+                        >
+                          <option value="PHOTO">사진</option>
+                          <option value="FLOOR_PLAN">도면</option>
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-1 flex items-end">
+                        <button
+                          type="button"
+                          className="mb-1 inline-flex items-center gap-1 rounded-md border px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                          onClick={() => removeImageRow(idx)}
+                          aria-label="이미지 삭제"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                onClick={addImageRow}
-                className="inline-flex items-center gap-2"
-              >
-                <PlusCircle className="h-4 w-4" />
-                이미지 추가
-              </Button>
+                    {/* 미리보기 */}
+                    <div className="mt-3 overflow-hidden rounded-lg border">
+                      {isValidUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={img.imageUrl.trim()}
+                          alt="미리보기"
+                          className="h-32 w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex items-center gap-2 p-3 text-sm text-gray-600">
+                          <ImageIcon className="h-4 w-4 text-gray-400" />
+                          <span>
+                            유효한 이미지 URL을 입력하면 미리보기가 보여요.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </form>
-        </div>
 
-        {/* sticky 푸터 */}
-        <DialogFooter
-          className="
-            sticky bottom-0 z-10 bg-white/90 backdrop-blur
-            border-t px-6 py-3
-          "
-        >
-          <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={loading}>
-              취소
+            <Button
+              type="button"
+              variant="outline"
+              onClick={addImageRow}
+              className="inline-flex items-center gap-2"
+            >
+              <PlusCircle className="h-4 w-4" />
+              이미지 추가
             </Button>
-          </DialogClose>
-          <Button
-            type="submit"
-            form="__dummy__"
-            onClick={(e: any) => {
-              const formEl = e.currentTarget
-                .closest('[role="dialog"]')
-                ?.querySelector('form') as HTMLFormElement | null;
-              formEl?.requestSubmit();
-            }}
-            disabled={loading}
-          >
-            {loading
-              ? mode === 'edit'
-                ? '수정 중…'
-                : '추가 중…'
-              : submitLabel}
-          </Button>
-        </DialogFooter>
+          </div>
+
+          {/* 액션 버튼: 푸터 대신 폼 하단에 위치(스크롤됨) */}
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={loading}>
+                취소
+              </Button>
+            </DialogClose>
+            <Button type="submit" disabled={loading}>
+              {loading
+                ? mode === 'edit'
+                  ? '수정 중…'
+                  : '추가 중…'
+                : submitLabel}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
