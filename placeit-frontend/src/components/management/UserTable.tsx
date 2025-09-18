@@ -31,10 +31,10 @@ export default function UserTable({
           <thead className="bg-gray-50 text-left text-sm text-gray-600">
             <tr>
               <th className="w-[30%] px-4 py-3 font-medium">사용자</th>
-              <th className="w-[22%] px-4 py-3 font-medium">부서/직급</th>
+              <th className="w-[20%] px-4 py-3 font-medium">부서/직급</th>
               <th className="w-[12%] px-4 py-3 font-medium">역할</th>
-              <th className="w-[12%] px-4 py-3 font-medium text-center">
-                예약 건수
+              <th className="w-[20%] px-4 py-3 font-medium text-center">
+                월간 예약 건수
               </th>
               <th className="w-[16%] px-4 py-3 font-medium">마지막 로그인</th>
               <th className="w-[8%] px-4 py-3 font-medium"></th>
