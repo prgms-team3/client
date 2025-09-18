@@ -21,38 +21,27 @@ export type WorkspaceLite = {
 };
 
 interface WorkspaceState {
-  /** 사용자/환경에 묶기 위한 키 (예: u:1|https://api...) */
   ownerKey: string | null;
-
-  /** 현재 선택된 워크스페이스 id(문자열) */
   currentId: string | null;
-
-  /** 워크스페이스 목록(정규화된 가벼운 형태) */
   list: WorkspaceLite[];
-
-  /** 마지막으로 목록을 가져온 시각(ms) */
   lastFetched: number | null;
 
-  // actions
   bindToUser: (ownerKey: string | null) => void;
 
   setCurrent: (id: string | number | null) => void;
   setList: (list: WorkspaceLite[]) => void;
 
-  /** 오래됐으면 갱신 (기본 5분) */
   refreshIfStale: (opts?: {
     staleTime?: number;
     signal?: AbortSignal;
   }) => Promise<void>;
 
-  /** 강제 새로고침 */
   hardRefresh: (signal?: AbortSignal) => Promise<void>;
 }
 
 /* -------------------- helpers -------------------- */
 
 function extractWorkspaces(input: unknown): RawWorkspace[] {
-  // 응답이 { workspaces: [...] } 또는 그냥 배열 둘 다 대응
   if (Array.isArray(input)) return input as RawWorkspace[];
   if (input && typeof input === 'object') {
     const maybe = input as { workspaces?: unknown };

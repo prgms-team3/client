@@ -259,9 +259,9 @@ export default function WorkspacesPage() {
         {/* 헤더 */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="mb-2 text-3xl font-bold">워크스페이스 관리</h1>
+            <h1 className="mb-2 text-3xl font-bold">내 워크스페이스</h1>
             <p className="text-gray-600">
-              워크스페이스를 생성하고 멤버를 초대하여 관리하세요
+              워크스페이스에 참여하거나 새로 생성하세요
             </p>
           </div>
           <AddWorkspaceDialog mode="create" onCreated={handleCreated} />

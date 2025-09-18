@@ -234,7 +234,7 @@ export function Sidebar({ activePage, userName = '홍길동' }: SidebarProps) {
     },
     {
       id: 'workspace',
-      label: '워크스페이스 관리',
+      label: '내 워크스페이스',
       subtitle: '초대코드 관리',
       icon: Building2,
       href: '/workspace',

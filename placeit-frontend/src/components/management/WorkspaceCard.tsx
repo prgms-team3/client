@@ -63,12 +63,11 @@ export default function WorkspaceCard({
   return (
     <div className="overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md">
       <div className="relative aspect-[16/9]">
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={imageUrl ?? DEFAULT_IMG}
           alt={`${name} cover`}
-          fill
-          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
-          className="object-cover"
+          className="w-full h-full object-cover rounded-md"
         />
         <span
           className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow ${
