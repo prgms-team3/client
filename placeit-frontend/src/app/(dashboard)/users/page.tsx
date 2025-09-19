@@ -131,7 +131,8 @@ export default function UserManagementPage() {
     [rows]
   );
   const adminCount = React.useMemo(
-    () => rows.filter(u => u.role === 'admin').length,
+    () =>
+      rows.filter(u => u.role === 'admin' || u.role === 'super_admin').length,
     [rows]
   );
   const thisMonthNew = React.useMemo(() => {
