@@ -1,138 +1,129 @@
-// stores/workspaceStore.ts
+// src/stores/workspaceStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { fetchMyWorkspaces } from '@/services/workspaces';
+import { api } from '@/lib/axios';
 
-/** 서버 응답의 최소 형태(우리가 쓰는 필드만) */
-type RawWorkspace = {
-  id: number | string;
+// --- Types -------------------------------------------------------------------
+export type Workspace = {
+  id: string;
   name: string;
-  deleted?: boolean;
+  imageUrl?: string | null;
+  isActive?: boolean;
   activeInvitationCode?: string | null;
   userRole?: 'SUPER_ADMIN' | 'ADMIN' | 'MEMBER' | string;
+  role?: 'SUPER_ADMIN' | 'ADMIN' | 'MEMBER' | string; // 과거 호환
 };
 
-/** 헤더/대시보드 등에서 쓰는 가벼운 형태 */
-export type WorkspaceLite = {
-  id: string; // 항상 문자열로 통일
-  name: string;
-  userRole?: 'SUPER_ADMIN' | 'ADMIN' | 'MEMBER';
-  activeInvitationCode?: string | null;
+type RefreshOptions = {
+  staleTime?: number; // ms
+  signal?: AbortSignal;
 };
 
-interface WorkspaceState {
+type WorkspaceStore = {
+  // 상태
+  list: Workspace[];
   ownerKey: string | null;
   currentId: string | null;
-  list: WorkspaceLite[];
-  lastFetched: number | null;
+  currentIdByOwner: Record<string, string | null>;
+  lastFetchedAt: number | null;
+  loading: boolean;
+  error: string | null;
 
-  bindToUser: (ownerKey: string | null) => void;
+  // 동작
+  bindToUser: (ownerKey: string) => void;
+  setCurrent: (id: string) => void;
 
-  setCurrent: (id: string | number | null) => void;
-  setList: (list: WorkspaceLite[]) => void;
-
-  refreshIfStale: (opts?: {
-    staleTime?: number;
-    signal?: AbortSignal;
-  }) => Promise<void>;
-
+  refreshIfStale: (opts?: RefreshOptions) => Promise<void>;
   hardRefresh: (signal?: AbortSignal) => Promise<void>;
+};
+
+// --- 내부 유틸 ----------------------------------------------------------------
+const NAME = 'workspace-storage-v1';
+
+// 서버에서 내 워크스페이스 목록 가져오기
+async function fetchMyWorkspaces(signal?: AbortSignal): Promise<Workspace[]> {
+  const res = await api.get('/workspaces/my', { signal });
+  const arr: Workspace[] = res.data?.workspaces ?? res.data ?? [];
+  return arr.map((w: any) => ({ ...w, id: String(w.id) }));
 }
 
-/* -------------------- helpers -------------------- */
-
-function extractWorkspaces(input: unknown): RawWorkspace[] {
-  if (Array.isArray(input)) return input as RawWorkspace[];
-  if (input && typeof input === 'object') {
-    const maybe = input as { workspaces?: unknown };
-    if (Array.isArray(maybe.workspaces))
-      return maybe.workspaces as RawWorkspace[];
-  }
-  return [];
-}
-
-function normalizeLite(ws: RawWorkspace): WorkspaceLite {
-  return {
-    id: String(ws.id),
-    name: ws.name ?? '',
-    userRole: (ws.userRole as any) ?? undefined,
-    activeInvitationCode: ws.activeInvitationCode ?? null,
-  };
-}
-
-/** 서버에서 목록을 불러와 가벼운 형태로 정규화 */
-async function loadMyWorkspaces(): Promise<WorkspaceLite[]> {
-  const raw = await fetchMyWorkspaces();
-  const arr = extractWorkspaces(raw).filter(w => !w.deleted); // 삭제된 항목 제외(있다면)
-  return arr.map(normalizeLite);
-}
-
-/* -------------------- store -------------------- */
-
-export const useWorkspaceStore = create<WorkspaceState>()(
+export const useWorkspaceStore = create<WorkspaceStore>()(
   persist(
     (set, get) => ({
+      // 초기값
+      list: [],
       ownerKey: null,
       currentId: null,
-      list: [],
-      lastFetched: null,
+      currentIdByOwner: {},
+      lastFetchedAt: null,
+      loading: false,
+      error: null,
 
-      bindToUser: (ownerKey: string | null) => {
-        const prev = get().ownerKey;
-        if (prev !== ownerKey) {
-          // 다른 사용자/환경으로 전환되면 목록과 선택값 초기화
-          set({
-            ownerKey,
-            list: [],
-            currentId: null,
-            lastFetched: null,
-          });
-        }
+      // 오너(유저+BASE) 바인딩: 헤더에서 ownerKey를 계산해 넘겨줌
+      bindToUser: (ownerKey: string) => {
+        const currMap = get().currentIdByOwner;
+        const saved = currMap[ownerKey] ?? null;
+        set({ ownerKey, currentId: saved });
       },
 
-      setCurrent: (id: string | number | null) =>
-        set({ currentId: id == null ? null : String(id) }),
+      // 선택 변경: 오너키 스코프에 맞춰 저장
+      setCurrent: (id: string) => {
+        const st = get();
+        const key = st.ownerKey ?? 'guest';
+        const map = { ...st.currentIdByOwner, [key]: id };
+        set({ currentId: id, currentIdByOwner: map });
+      },
 
-      setList: (list: WorkspaceLite[]) => set({ list }),
-
-      refreshIfStale: async opts => {
-        const staleTime = opts?.staleTime ?? 5 * 60 * 1000; // 5분
-        const last = get().lastFetched ?? 0;
+      // 캐시 유효하면 스킵, 아니면 가져오기
+      refreshIfStale: async (opts?: RefreshOptions) => {
+        const { staleTime = 1000 * 60 * 5, signal } = opts ?? {};
+        const { lastFetchedAt, list } = get();
         const now = Date.now();
 
-        if (get().list.length > 0 && now - last < staleTime) return;
+        if (lastFetchedAt && now - lastFetchedAt < staleTime && list.length > 0)
+          return;
 
-        const list = await loadMyWorkspaces();
-        set(state => {
-          // currentId가 없으면 첫 번째로 기본 선택
-          const nextCurrent =
-            state.currentId && list.some(w => w.id === state.currentId)
-              ? state.currentId
-              : list[0]?.id ?? null;
-          return { list, currentId: nextCurrent, lastFetched: now };
-        });
+        await get().hardRefresh(signal);
       },
 
-      hardRefresh: async (_signal?: AbortSignal) => {
-        const list = await loadMyWorkspaces();
-        set(state => {
-          const nextCurrent =
-            state.currentId && list.some(w => w.id === state.currentId)
-              ? state.currentId
-              : list[0]?.id ?? null;
-          return { list, currentId: nextCurrent, lastFetched: Date.now() };
-        });
+      // 강제 새로고침
+      hardRefresh: async (signal?: AbortSignal) => {
+        set({ loading: true, error: null });
+        try {
+          const arr = await fetchMyWorkspaces(signal);
+          set({ list: arr, lastFetchedAt: Date.now() });
+
+          const { currentId, ownerKey } = get();
+          const exists = currentId && arr.some(w => w.id === currentId);
+
+          if (!exists) {
+            const fallback = arr[0]?.id ?? null;
+            if (fallback) {
+              const key = ownerKey ?? 'guest';
+              const map = { ...get().currentIdByOwner, [key]: fallback };
+              set({ currentId: fallback, currentIdByOwner: map });
+            } else {
+              set({ currentId: null });
+            }
+          }
+        } catch (e: any) {
+          set({ error: e?.message ?? 'Failed to fetch workspaces' });
+        } finally {
+          set({ loading: false });
+        }
       },
     }),
     {
-      name: 'workspace-storage',
-      // ownerKey가 바뀌어도 다른 유저 데이터가 섞이지 않도록
+      name: NAME,
       partialize: state => ({
-        ownerKey: state.ownerKey,
-        currentId: state.currentId,
-        list: state.list,
-        lastFetched: state.lastFetched,
+        currentIdByOwner: state.currentIdByOwner,
       }),
+      version: 1,
+      migrate: (persisted: any, version) => {
+        if (version === 0) {
+        }
+        return persisted;
+      },
     }
   )
 );
