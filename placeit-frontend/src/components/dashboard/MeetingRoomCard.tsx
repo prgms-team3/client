@@ -1,5 +1,6 @@
+'use client';
+
 import React from 'react';
-import Image from 'next/image';
 import {
   Card,
   CardHeader,
@@ -15,9 +16,41 @@ import {
   Mic,
   AirVent,
   Presentation,
+  Building,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Users, Building } from 'lucide-react';
+
+type ImageType = 'PHOTO' | 'FLOOR_PLAN';
+type RoomImage = { imageUrl: string; imageType: ImageType };
+
+type RoomStatus =
+  | 'available'
+  | 'occupied'
+  | 'reserved'
+  | 'maintenance'
+  | 'unavailable';
+
+interface MeetingRoomCardProps {
+  name: string;
+  description?: string;
+  capacity: number;
+  /** 기존 props 유지 */
+  features: string[];
+  status: RoomStatus;
+  requiresApproval?: boolean;
+  isSelected?: boolean;
+  onSelect?: () => void;
+  reservedTime?: string;
+
+  /** 새로 추가: 대표 이미지 1장 또는 여러 장 */
+  imageUrl?: string;
+  images?: RoomImage[];
+}
+
+const DEFAULT_IMAGE =
+  'https://images.unsplash.com/photo-1497366216548-37526070297c';
 
 const AMENITY_MAP: Record<
   string,
@@ -32,87 +65,132 @@ const AMENITY_MAP: Record<
   speaker: { label: '스피커', icon: Volume2 },
 };
 
-type RoomStatus =
-  | 'available'
-  | 'occupied'
-  | 'reserved'
-  | 'maintenance'
-  | 'unavailable'; // ← 추가
+const statusColor = (status: RoomStatus) => {
+  switch (status) {
+    case 'available':
+      return 'bg-green-500';
+    case 'occupied':
+      return 'bg-orange-600';
+    case 'reserved':
+      return 'bg-amber-500';
+    case 'maintenance':
+      return 'bg-yellow-500';
+    case 'unavailable':
+      return 'bg-red-600';
+    default:
+      return 'bg-gray-500';
+  }
+};
 
-interface MeetingRoomCardProps {
-  name: string;
-  description: string;
-  capacity: number;
-  features: string[];
-  status: RoomStatus; // ← 타입에 포함
-  imageUrl?: string;
-  isSelected?: boolean;
-  onSelect?: () => void;
-  reservedTime?: string;
-  requiresApproval?: boolean;
+const statusText = (status: RoomStatus) => {
+  switch (status) {
+    case 'available':
+      return '사용 가능';
+    case 'occupied':
+      return '사용 중';
+    case 'reserved':
+      return '예약됨';
+    case 'maintenance':
+      return '점검 중';
+    case 'unavailable':
+      return '사용 불가능';
+    default:
+      return '알 수 없음';
+  }
+};
+
+const approvalBadge = (requiresApproval?: boolean) =>
+  requiresApproval
+    ? { cls: 'bg-yellow-400 text-white', text: '예약 시 승인 필요' }
+    : { cls: 'bg-blue-400 text-white', text: '누구나 예약 가능' };
+
+function pickPrimaryIndex(images?: RoomImage[]) {
+  if (!images || images.length === 0) return -1;
+  const idx = images.findIndex(i => i.imageType === 'PHOTO');
+  return idx >= 0 ? idx : 0;
 }
 
 export function MeetingRoomCard({
   name,
-  description,
+  description = '',
   capacity,
   features,
   status,
-  imageUrl,
+  requiresApproval = false,
   isSelected = false,
   onSelect,
   reservedTime,
-  requiresApproval = false,
+  imageUrl,
+  images,
 }: MeetingRoomCardProps) {
-  const CARD_DIMENSIONS = {
-    minHeight: 'min-h-[400px]',
-    maxWidth: 'max-w-[280px]',
-    imageHeight: 'h-48',
-  } as const;
+  const isClickable = status !== 'unavailable';
 
-  const getStatusColor = (status: RoomStatus) => {
-    switch (status) {
-      case 'available':
-        return 'bg-green-500';
-      case 'occupied':
-        return 'bg-orange-600';
-      case 'reserved':
-        return 'bg-amber-500';
-      case 'maintenance':
-        return 'bg-yellow-500';
-      case 'unavailable': // ← 추가
-        return 'bg-red-600';
-      default:
-        return 'bg-gray-500';
-    }
+  // 캐러셀 상태
+  const [activeIdx, setActiveIdx] = React.useState<number>(() =>
+    pickPrimaryIndex(images)
+  );
+  const count = images?.length ?? (imageUrl ? 1 : 0);
+
+  React.useEffect(() => {
+    setActiveIdx(pickPrimaryIndex(images));
+  }, [images]);
+
+  const activeSrc =
+    (images && images.length > 0 && images[activeIdx]?.imageUrl) ||
+    imageUrl ||
+    DEFAULT_IMAGE;
+
+  const activeType: ImageType =
+    images && images.length > 0
+      ? images[activeIdx]?.imageType ?? 'PHOTO'
+      : 'PHOTO';
+
+  const canCarousel = (images?.length ?? 0) > 1;
+
+  const goPrev = () => {
+    if (!canCarousel) return;
+    setActiveIdx(i => (i - 1 + (images?.length ?? 1)) % (images?.length ?? 1));
+  };
+  const goNext = () => {
+    if (!canCarousel) return;
+    setActiveIdx(i => (i + 1) % (images?.length ?? 1));
   };
 
-  const getStatusText = (status: RoomStatus) => {
-    switch (status) {
-      case 'available':
-        return '사용 가능';
-      case 'occupied':
-        return '사용 중';
-      case 'reserved':
-        return '예약됨';
-      case 'maintenance':
-        return '점검 중';
-      case 'unavailable': // ← 추가
-        return '사용 불가능';
-      default:
-        return '알 수 없음';
+  // 키보드 내비게이션
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') goPrev();
+      else if (e.key === 'ArrowRight') goNext();
+    };
+    el.addEventListener('keydown', onKey);
+    return () => el.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [images]);
+
+  // 드래그/스와이프
+  const startX = React.useRef<number | null>(null);
+  const onPointerDown = (e: React.PointerEvent) => {
+    startX.current = e.clientX;
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (startX.current == null) return;
+    const dx = e.clientX - startX.current;
+    if (Math.abs(dx) > 30) {
+      dx > 0 ? goPrev() : goNext();
     }
+    startX.current = null;
   };
 
-  const isClickable = status !== 'unavailable'; // 선택 막고 싶으면 사용
+  const approval = approvalBadge(requiresApproval);
 
   return (
     <Card
-      className={`w-full ${
-        CARD_DIMENSIONS.maxWidth
-      } h-full hover:shadow-lg transition-all duration-200 ${
+      className={`w-full max-w-[280px] h-full transition-all duration-200 border-2 ${
         isClickable ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'
-      } flex flex-col ${CARD_DIMENSIONS.minHeight} border-2 ${
+      } flex flex-col min-h-[400px] ${
         isSelected
           ? 'border-blue-500 shadow-xl bg-blue-50 ring-4 ring-blue-200'
           : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
@@ -121,62 +199,94 @@ export function MeetingRoomCard({
       aria-disabled={!isClickable}
     >
       <CardHeader className="relative pb-3">
+        {/* 이미지 / 캐러셀 */}
         <div
-          className={`${CARD_DIMENSIONS.imageHeight} bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg overflow-hidden mb-4 relative`}
+          ref={containerRef}
+          tabIndex={0}
+          className="relative overflow-hidden rounded-lg outline-none mb-4"
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerUp}
+          aria-label={`${name} 이미지 갤러리`}
         >
-          {imageUrl ? (
-            <Image
-              src={imageUrl}
-              alt={name}
-              fill
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              className="object-cover"
-              onError={e => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                const placeholder = target.nextElementSibling as HTMLElement;
-                if (placeholder) {
-                  placeholder.style.display = 'flex';
-                }
-              }}
-            />
-          ) : null}
-
-          {/* 기본 이미지 플레이스홀더 */}
-          <div
-            className={`w-full h-full items-center justify-center ${
-              imageUrl ? 'hidden' : 'flex'
-            }`}
-          >
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-200 rounded-full flex items-center justify-center mx-auto mb-2">
-                <Building className="w-8 h-8 text-blue-600" />
-              </div>
-              <p className="text-blue-600 font-medium">{name}</p>
-            </div>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={activeSrc}
+            alt={name}
+            width={800}
+            height={450}
+            className="aspect-[16/9] w-full object-cover transition-[transform,opacity]"
+          />
 
           {/* 상태 뱃지 */}
           <Badge
-            className={`absolute top-2 right-2 ${getStatusColor(
+            className={`absolute top-2 right-2 ${statusColor(
               status
             )} text-white text-xs px-2 py-1`}
           >
-            {getStatusText(status)}
+            {statusText(status)}
           </Badge>
+
+          {/* 이미지 개수 / 타입 라벨 */}
+          {count > 1 && (
+            <span className="absolute left-2 top-2 z-10 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white">
+              {activeIdx >= 0 ? activeIdx + 1 : 1}/{count}
+            </span>
+          )}
+          {count >= 1 && (
+            <span className="absolute left-2 bottom-2 z-10 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-gray-800">
+              {activeType === 'FLOOR_PLAN' ? '도면' : '사진'}
+            </span>
+          )}
+
+          {/* 화살표 */}
+          {canCarousel && (
+            <>
+              <button
+                type="button"
+                onClick={goPrev}
+                className="group absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/80 p-2 shadow hover:bg-white focus:outline-none"
+                aria-label="이전 이미지"
+              >
+                <ChevronLeft className="h-5 w-5 text-gray-700 group-hover:scale-110 transition" />
+              </button>
+              <button
+                type="button"
+                onClick={goNext}
+                className="group absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/80 p-2 shadow hover:bg-white focus:outline-none"
+                aria-label="다음 이미지"
+              >
+                <ChevronRight className="h-5 w-5 text-gray-700 group-hover:scale-110 transition" />
+              </button>
+            </>
+          )}
+
+          {/* 인디케이터 */}
+          {canCarousel && (
+            <div className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2">
+              <div className="flex items-center gap-1.5 rounded-full bg-black/35 px-2 py-1">
+                {images!.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={e => {
+                      e.stopPropagation();
+                      setActiveIdx(idx);
+                    }}
+                    aria-label={`${idx + 1}번 이미지로 이동`}
+                    className={`h-2.5 w-2.5 rounded-full transition ${
+                      idx === activeIdx ? 'bg-white' : 'bg-white/50'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* 예약 정책 뱃지 */}
+        {/* 예약 정책 뱃지 (기존 유지) */}
         <div className="mb-2">
-          {requiresApproval ? (
-            <Badge className="bg-yellow-400 text-white text-xs px-2 py-1">
-              예약 시 승인 필요
-            </Badge>
-          ) : (
-            <Badge className="bg-blue-400 text-white text-xs px-2 py-1">
-              누구나 예약 가능
-            </Badge>
-          )}
+          <Badge className={`${approval.cls} text-xs px-2 py-1`}>
+            {approval.text}
+          </Badge>
         </div>
 
         <CardTitle className="text-lg font-semibold">{name}</CardTitle>
@@ -189,7 +299,7 @@ export function MeetingRoomCard({
         <div className="space-y-3">
           {/* 수용 인원 */}
           <div className="flex items-center gap-2 text-sm text-gray-600">
-            <Users className="h-4 w-4 text-gray-500" />
+            <Building className="h-4 w-4 text-gray-500" />
             <span>{capacity}명</span>
           </div>
 
@@ -205,7 +315,7 @@ export function MeetingRoomCard({
                 const Icon = mapped.icon;
                 return (
                   <Badge
-                    key={index}
+                    key={`${feature}-${index}`}
                     variant="secondary"
                     className="flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2 py-1"
                   >
@@ -217,7 +327,7 @@ export function MeetingRoomCard({
             </div>
           </div>
 
-          {/* 예약 시간 표시 */}
+          {/* 예약 시간 표시 (기존 유지) */}
           {reservedTime && (
             <div
               className={`mt-2 p-2 rounded-lg border ${

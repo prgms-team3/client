@@ -378,6 +378,13 @@ export default function DashboardPage() {
                           features={space.amenities}
                           status={space.isActive ? 'available' : 'unavailable'}
                           requiresApproval={space.requiresApproval}
+                          images={space.images}
+                          imageUrl={
+                            space.images?.find?.(i => i.imageType === 'PHOTO')
+                              ?.imageUrl ??
+                            space.images?.[0]?.imageUrl ??
+                            undefined
+                          }
                           onSelect={() => handleRoomSelect(space)}
                           isSelected={selectedRoom?.id === space.id}
                         />
