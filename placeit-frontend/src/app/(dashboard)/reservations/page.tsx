@@ -352,8 +352,12 @@ export default function ReservationsPage() {
 
   // 월 뷰 집계(+N건)
   const monthReservations = useMemo(() => {
-    const grouped: Record<string, typeof filteredReservations> = {};
-    for (const r of filteredReservations) {
+    const approvedOnly = (filteredReservations as any[]).filter(
+      r => (r as any).rawStatus === 'APPROVED'
+    );
+
+    const grouped: Record<string, typeof approvedOnly> = {};
+    for (const r of approvedOnly) {
       (grouped[(r as any).date] ??= []).push(r as any);
     }
 
@@ -424,6 +428,7 @@ export default function ReservationsPage() {
               .filter(Boolean)
           : [],
         status: mapStatus(r.status),
+        rawStatus: r.status,
         ownerId: r.userId ?? r.user?.id ?? null,
       }));
 
