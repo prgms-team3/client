@@ -1,138 +1,159 @@
-# PlaceIt - 공간 예약 관리 시스템
+# 🏢 PlaceIt  
+**회사의 회의실·공용 공간을 한 눈에 관리하는 공간 예약 플랫폼**
 
-> 쉽고 빠른 공간 예약 관리 시스템으로 회의실과 공용 공간을 효율적으로 관리하세요.
+쉽고 빠른 공간 예약 관리 시스템으로  
+회의실과 공용 공간을 효율적으로 관리하세요.
 
-## 🚀 기술 스택
+🔗 **Demo**  
+https://placeit-client-332546556871.asia-northeast1.run.app/
 
-- **Frontend**: Next.js 15, TypeScript
-- **Styling**: Tailwind CSS, shadcn/ui
-- **Font**: Pretendard (한글 최적화)
+---
 
-## 🌿 브랜치 전략
+## 📌 프로젝트 소개
 
-### 브랜치 구조
+**PlaceIt**은 여러 개의 회사를 한 계정에서 관리할 수 있는  
+**멀티 워크스페이스 기반 공간 예약 관리 서비스**입니다.
 
-```
-main (프로덕션)
-├── develop (개발 통합)
-    ├── feature/기능명
-    ├── fix/버그명
-    └── hotfix/긴급수정명
-```
+운영자는 회의실과 공용 공간을 등록 및 승인/거절하고,  
+구성원들은 웹에서 쉽고 직관적으로 예약·조회할 수 있습니다.
 
-### 워크플로우
+> “별도의 매뉴얼 없이도 직관적으로 사용할 수 있는 서비스” — 프로그래머스 CTO 리뷰 中
 
-1. `develop`에서 새 브랜치 생성
-2. 기능 개발 후 `develop`에 머지
-3. 안정화 후 `main`에 머지
+---
 
-## 📝 커밋 메시지 컨벤션
+## 👥 팀 구성 및 역할
 
-### 커밋 유형
+### 🧑‍💻 Frontend
+- **박수연 ([suooo](https://github.com/suooo))** - 팀장 / 프론트엔드
+  - 퍼블리싱
+  - 전역 상태 관리(Zustand) 설계
+  - OAuth 로그인 포함 전체 API 연동
 
-| 유형               | 의미                                                         |
-| ------------------ | ------------------------------------------------------------ |
-| `Feat`             | 새로운 기능 추가                                             |
-| `Fix`              | 버그 수정                                                    |
-| `Docs`             | 문서 수정                                                    |
-| `Style`            | 코드 formatting, 세미콜론 누락, 코드 자체의 변경이 없는 경우 |
-| `Refactor`         | 코드 리팩토링                                                |
-| `Test`             | 테스트 코드, 리팩토링 테스트 코드 추가                       |
-| `Chore`            | 패키지 매니저 수정, 그 외 기타 수정 ex) .gitignore           |
-| `Design`           | CSS 등 사용자 UI 디자인 변경                                 |
-| `Comment`          | 필요한 주석 추가 및 변경                                     |
-| `Rename`           | 파일 또는 폴더 명을 수정하거나 옮기는 작업만인 경우          |
-| `Remove`           | 파일을 삭제하는 작업만 수행한 경우                           |
-| `!BREAKING CHANGE` | 커다란 API 변경의 경우                                       |
-| `!HOTFIX`          | 급하게 치명적인 버그를 고쳐야 하는 경우                      |
+### 🧑‍💻 Backend
+- **안정환 ([jnghwn99](https://github.com/jnghwn99))** - 백엔드
+  - 인증/인가 구현
+  - 사용자·그룹 기능 API 개발
+  - Docker · Google Cloud 배포
 
-### 커밋 메시지 예시
+- **조영래 ([Florenshio](https://github.com/Florenshio))** - 백엔드
+  - 워크스페이스 기능 개발
+  - 회의실 관리 기능 API 개발
+  - 예약 기능 API 개발
+    
+---
 
-```bash
-Feat: 실시간 예약 대시보드 구현
-Fix: Safari에서 버튼 클릭 안되는 오류 해결
-Docs: README 브랜치 전략 가이드 추가
-```
+## ✨ 주요 기능
 
-## 🛠️ 개발 환경 설정
+### 👥 워크스페이스 & 멤버 관리
+<div style="display: flex; gap: 10px; align-items: flex-start;">
+  <img 
+    src="https://github.com/user-attachments/assets/a329e9d3-f78b-4cef-b762-db5b21eaaa32" 
+    style="width: 48%; height: 260px; object-fit: cover; object-position: top;" 
+  />
+  <img 
+    src="https://github.com/user-attachments/assets/6042159f-3b4b-4fc0-9199-85cde55ba6dc"
+    style="width: 48%; height: 260px; object-fit: cover; object-position: top;" 
+  />
+</div>
 
-### 1. 저장소 클론
+- 여러 회사를 **워크스페이스 단위**로 분리하여 관리
+- 초대 코드로 워크스페이스 참여 가능, 코드가 없으면 새로운 워크스페이스 생성
+- 역할 기반 권한 설정 (`SUPER_ADMIN`, `ADMIN`, `MEMBER`)
+- 워크스페이스 전환 기능으로 **멀티 조직 환경** 지원
 
-```bash
-git clone https://github.com/prgms-team3/client.git
-cd placeit-frontend
-```
 
-### 2. 의존성 설치
+### 🔐 OAuth 기반 인증 (로그인 & 회원가입)
+<div style="display: flex; gap: 10px; align-items: flex-start;">
+  <img 
+    src="https://github.com/user-attachments/assets/b92ab988-8457-4341-ba13-dcdcba96b522"
+    style="width: 23%; height: 280px; object-fit: cover; object-position: top;"
+  />
+  <img 
+    src="https://github.com/user-attachments/assets/51cc2843-80dd-48f8-b197-37b814db9700"
+    style="width: 23%; height: 280px; object-fit: cover; object-position: top;"
+  />
+  <img 
+    src="https://github.com/user-attachments/assets/2716943a-de6a-4c2e-a31c-92c9aac8b527"
+    style="width: 23%; height: 280px; object-fit: cover; object-position: top;"
+  />
+</div>
 
-```bash
-npm install
-```
+- **Google / Kakao OAuth** 간편 로그인/회원가입
+- 최초 로그인 시 자동 프로필 생성
+- JWT 기반 토큰 구조로 **세션 유지 및 자동 재발급**
 
-### 3. 개발 서버 실행
 
-```bash
-npm run dev
-```
+### 🏢 공간(회의실) 관리
+<div style="display: flex; gap: 10px; align-items: flex-start;">
+  <img 
+    src="https://github.com/user-attachments/assets/61b553a6-2c7d-4e45-91b7-31c50f97d46c" 
+    style="width: 50%; height: 280px; object-fit: cover; object-position: top;"
+  />
+  <img 
+    src="https://github.com/user-attachments/assets/e02c0b0e-3ca0-4647-b5a2-c9f90a8eabf9" 
+    style="width: 20%; height: 280px; object-fit: cover; object-position: top;"
+  />
+</div>
 
-### 4. Git Flow 워크플로우
+- **자유 예약 공간 / 승인 필요 공간** 두 유형의 회의실 관리
+- 공간 이미지, 편의시설 아이콘, 수용 인원 설정
+- 상단의 **공간 통계 / 검색 / 필터**
+  
 
-#### 1. 기능 개발
+### 📅 예약 관리
+<div style="display: flex; gap: 10px; align-items: flex-start;">
+  <img 
+    src="https://github.com/user-attachments/assets/58d426f2-d9ea-4999-803c-9f202204811e"
+    style="width: 48%; height: 280px; object-fit: cover; object-position: top;"
+  />
+  <img 
+    src="https://github.com/user-attachments/assets/544eb533-cf10-49ee-9177-83d8c88ee9e5"
+    style="width: 48%; height: 280px; object-fit: cover; object-position: top;"
+  />
+</div>
 
-```bash
-# develop에서 새 기능 브랜치 생성
-git checkout develop
-git pull origin develop
-git checkout -b feature/기능명
+- 일/주/월 단위 캘린더
+- 예약 상태(`PENDING`, `APPROVED`, `REJECTED`) 표시
+- 중복 예약 자동 방지 & 시각적 중첩 처리
+- 예약 통계, 검색, 필터 제공
 
-# 개발 작업 후 커밋 및 푸시
-git add .
-git commit -m "feat: 기능 설명"
-git push origin feature/기능명
-```
 
-#### 2. PR 생성 (GitHub 웹)
+### 👤 사용자 & 그룹 관리
+<div style="display: flex; gap: 10px; align-items: flex-start;">
+  <img 
+    src="https://github.com/user-attachments/assets/68b37a77-afa0-41ec-acad-1a570f1bb823"
+    style="width: 49%; height: 280px; object-fit: cover; object-position: top;"
+  />
+  <img 
+    src="https://github.com/user-attachments/assets/f2ae681f-d208-43a2-9205-e9dd9b5b6dca"
+    style="width: 49%; height: 280px; object-fit: cover; object-position: top;"
+  />
+</div>
 
-- `feature/기능명` → `develop` PR 생성
-- 리뷰어 지정 및 리뷰 요청
-- PR 설명에 기능 상세 내용 작성
+- 사용자 목록 조회 및 역할 변경
+- 그룹 생성/관리, 그룹별 멤버 운영
 
-#### 3. 코드 리뷰 & 머지 (GitHub 웹)
+---
 
-- 팀원 코드 리뷰 진행
-- 리뷰 의견 반영 및 수정
-- 승인 후 `develop`에 머지
+## 🛠 기술 스택
 
-#### 4. 정리
+### 🎨 Frontend
+- **Framework & Language:** Next.js, React, TypeScript  
+- **UI/UX:** TailwindCSS, shadcn/ui  
+- **State Management:** Zustand  
+- **API & Utility:** Axios  
+- **Design System / 문서화:** Storybook  
 
-```bash
-# develop 브랜치 최신화 및 로컬 브랜치 정리
-git checkout develop
-git pull origin develop
-git branch -d feature/기능명
-```
+### 🧱 Backend
+- **Framework:** Nest.js  
+- **ORM / Database:** TypeORM, MySQL  
+- **API 문서화:** Swagger  
+- **Infra & DevOps:** Docker, Google Cloud (Cloud Run / SQL 등)
 
-#### 5. 배포 (GitHub 웹)
 
-- `develop` → `main` PR 생성
-- 최종 승인 및 머지
-- 자동 배포 또는 수동 배포 진행
 
-## 📁 프로젝트 구조
+### 기타
 
-```
-src/
-├── app/                    # Next.js App Router
-│   ├── (auth)/            # 인증 관련 페이지
-│   ├── (dashboard)/       # 대시보드 페이지들
-│   ├── globals.css        # 전역 스타일
-│   ├── layout.tsx         # 루트 레이아웃
-│   └── page.tsx           # 랜딩 페이지
-├── components/            # 재사용 컴포넌트
-│   └── ui/               # shadcn/ui 컴포넌트
-└── lib/                  # 유틸리티 함수
-
-public/
-├── fonts/                # 폰트 파일
-└── icons/                # 아이콘 파일
-```
+- 폰트: **Pretendard** (한글 가독성 최적화)
+- 배포: Google Cloud Run
+- 형상관리: Git / GitHub, Git Flow 브랜치 전략
