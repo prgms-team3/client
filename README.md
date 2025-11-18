@@ -4,8 +4,9 @@
 쉽고 빠른 공간 예약 관리 시스템으로  
 회의실과 공용 공간을 효율적으로 관리하세요.
 
-🔗 **Demo**  
-https://placeit-client-332546556871.asia-northeast1.run.app/
+🔗 **Vercel Demo**  
+https://place-it-zeta.vercel.app/   
+*(Mock 데이터 기반 데모로, 별도 로그인/백엔드 서버 없이 대부분의 기능을 시연할 수 있습니다.)*
 
 ---
 
